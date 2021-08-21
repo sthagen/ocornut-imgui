@@ -1,4 +1,4 @@
-// dear imgui, v1.84 WIP
+// dear imgui, v1.84
 // (main code and documentation)
 
 // Help:
@@ -11,7 +11,7 @@
 // - FAQ                   http://dearimgui.org/faq
 // - Homepage & latest     https://github.com/ocornut/imgui
 // - Releases & changelog  https://github.com/ocornut/imgui/releases
-// - Gallery               https://github.com/ocornut/imgui/issues/3793 (please post your screenshots/video there!)
+// - Gallery               https://github.com/ocornut/imgui/issues/4451 (please post your screenshots/video there!)
 // - Wiki                  https://github.com/ocornut/imgui/wiki (lots of good stuff there)
 // - Glossary              https://github.com/ocornut/imgui/wiki/Glossary
 // - Issues & support      https://github.com/ocornut/imgui/issues
@@ -988,7 +988,8 @@ static void*                GImAllocatorUserData = NULL;
 
 ImGuiStyle::ImGuiStyle()
 {
-    Alpha                   = 1.0f;             // Global alpha applies to everything in ImGui
+    Alpha                   = 1.0f;             // Global alpha applies to everything in Dear ImGui.
+    DisabledAlpha           = 0.60f;            // Additional alpha multiplier applied by BeginDisabled(). Multiply over current value of Alpha.
     WindowPadding           = ImVec2(8,8);      // Padding within a window
     WindowRounding          = 0.0f;             // Radius of window corners rounding. Set to 0.0f to have rectangular windows. Large values tend to lead to variety of artifacts and are not recommended.
     WindowBorderSize        = 1.0f;             // Thickness of border around windows. Generally set to 0.0f or 1.0f. Other values not well tested.
@@ -1178,6 +1179,22 @@ void ImGuiIO::AddInputCharactersUTF8(const char* utf8_chars)
 void ImGuiIO::ClearInputCharacters()
 {
     InputQueueCharacters.resize(0);
+}
+
+void ImGuiIO::AddFocusEvent(bool focused)
+{
+    if (focused)
+        return;
+
+    // Clear buttons state when focus is lost
+    // (this is useful so e.g. releasing Alt after focus loss on Alt-Tab doesn't trigger the Alt menu toggle)
+    memset(KeysDown, 0, sizeof(KeysDown));
+    for (int n = 0; n < IM_ARRAYSIZE(KeysDownDuration); n++)
+        KeysDownDuration[n] = KeysDownDurationPrev[n] = -1.0f;
+    KeyCtrl = KeyShift = KeyAlt = KeySuper = false;
+    KeyMods = KeyModsPrev = ImGuiKeyModFlags_None;
+    for (int n = 0; n < IM_ARRAYSIZE(NavInputsDownDuration); n++)
+        NavInputsDownDuration[n] = NavInputsDownDurationPrev[n] = -1.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -2517,6 +2534,7 @@ struct ImGuiStyleVarInfo
 static const ImGuiStyleVarInfo GStyleVarInfo[] =
 {
     { ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImGuiStyle, Alpha) },               // ImGuiStyleVar_Alpha
+    { ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImGuiStyle, DisabledAlpha) },       // ImGuiStyleVar_DisabledAlpha
     { ImGuiDataType_Float, 2, (ImU32)IM_OFFSETOF(ImGuiStyle, WindowPadding) },       // ImGuiStyleVar_WindowPadding
     { ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImGuiStyle, WindowRounding) },      // ImGuiStyleVar_WindowRounding
     { ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImGuiStyle, WindowBorderSize) },    // ImGuiStyleVar_WindowBorderSize
@@ -4033,7 +4051,6 @@ void ImGui::NewFrame()
 
     // Update keyboard input state
     // Synchronize io.KeyMods with individual modifiers io.KeyXXX bools
-    g.IO.KeyModsPrev = g.IO.KeyMods;
     g.IO.KeyMods = GetMergedKeyModFlags();
     memcpy(g.IO.KeysDownDurationPrev, g.IO.KeysDownDuration, sizeof(g.IO.KeysDownDuration));
     for (int i = 0; i < IM_ARRAYSIZE(g.IO.KeysDown); i++)
@@ -4471,6 +4488,7 @@ void ImGui::EndFrame()
     // Clear Input data for next frame
     g.IO.MouseWheel = g.IO.MouseWheelH = 0.0f;
     g.IO.InputQueueCharacters.resize(0);
+    g.IO.KeyModsPrev = g.IO.KeyMods; // doing it here is better than in NewFrame() as we'll tolerate backend writing to KeyMods. If we want to firmly disallow it we should detect it.
     memset(g.IO.NavInputs, 0, sizeof(g.IO.NavInputs));
 
     CallContextHooks(&g, ImGuiContextHookType_EndFramePost);
@@ -6599,29 +6617,33 @@ void ImGui::PopItemFlag()
     g.CurrentItemFlags = g.ItemFlagsStack.back();
 }
 
-// PushDisabled()/PopDisabled()
-// - Those can be nested but this cannot be used to enable an already disabled section (a single PushDisabled(true) in the stack is enough to keep things disabled)
-// - Those are not yet exposed in imgui.h because we are unsure of how to alter the style in a way that works for everyone.
-//   We may rework this. Hypothetically, a future styling system may set a flag which make widgets use different colors.
+// BeginDisabled()/EndDisabled()
+// - Those can be nested but this cannot be used to enable an already disabled section (a single BeginDisabled(true) in the stack is enough to keep things disabled)
+// - Visually this is currently altering alpha, but it is expected that in a future styling system this would work differently.
 // - Feedback welcome at https://github.com/ocornut/imgui/issues/211
-// - You may trivially implement your own variation of this if needed.
-//   Here we test (CurrentItemFlags & ImGuiItemFlags_Disabled) to allow nested PushDisabled() calls.
-void ImGui::PushDisabled(bool disabled)
+// - BeginDisabled(false) essentially does nothing useful but is provided to facilitate use of boolean expressions. If you can avoid calling BeginDisabled(False)/EndDisabled() best to avoid it.
+// - Optimized shortcuts instead of PushStyleVar() + PushItemFlag()
+void ImGui::BeginDisabled(bool disabled)
 {
     ImGuiContext& g = *GImGui;
     bool was_disabled = (g.CurrentItemFlags & ImGuiItemFlags_Disabled) != 0;
+    g.DisabledAlphaBackup = g.Style.Alpha;
     if (!was_disabled && disabled)
-        PushStyleVar(ImGuiStyleVar_Alpha, g.Style.Alpha * 0.6f);
-    PushItemFlag(ImGuiItemFlags_Disabled, was_disabled || disabled);
+        g.Style.Alpha *= g.Style.DisabledAlpha; // PushStyleVar(ImGuiStyleVar_Alpha, g.Style.Alpha * g.Style.DisabledAlpha);
+    if (was_disabled || disabled)
+        g.CurrentItemFlags |= ImGuiItemFlags_Disabled;
+    g.ItemFlagsStack.push_back(g.CurrentItemFlags);
 }
 
-void ImGui::PopDisabled()
+void ImGui::EndDisabled()
 {
     ImGuiContext& g = *GImGui;
     bool was_disabled = (g.CurrentItemFlags & ImGuiItemFlags_Disabled) != 0;
-    PopItemFlag();
+    //PopItemFlag();
+    g.ItemFlagsStack.pop_back();
+    g.CurrentItemFlags &= ~ImGuiItemFlags_Disabled;
     if (was_disabled && (g.CurrentItemFlags & ImGuiItemFlags_Disabled) == 0)
-        PopStyleVar();
+        g.Style.Alpha = g.DisabledAlphaBackup; //PopStyleVar();
 }
 
 // FIXME: Look into renaming this once we have settled the new Focus/Activation/TabStop system.
@@ -9694,8 +9716,9 @@ static void ImGui::NavUpdateWindowing()
             g.NavWindowingToggleLayer = false;
 
         // Apply layer toggle on release
-        // FIXME: We lack an explicit IO variable for "is the platform window focused", so compare mouse validity to detect the common case of backend clearing releases all keys on ALT-TAB
-        if (!io.KeyAlt && g.NavWindowingToggleLayer)
+        // Important: we don't assume that Alt was previously held in order to handle loss of focus when backend calls io.AddFocusEvent(false)
+        // Important: as before version <18314 we lacked an explicit IO event for focus gain/loss, we also compare mouse validity to detect old backends clearing mouse pos on focus loss.
+        if (!(io.KeyMods & ImGuiKeyModFlags_Alt) && (io.KeyModsPrev & ImGuiKeyModFlags_Alt) && g.NavWindowingToggleLayer)
             if (g.ActiveId == 0 || g.ActiveIdAllowOverlap)
                 if (IsMousePosValid(&io.MousePos) == IsMousePosValid(&io.MousePosPrev))
                     apply_toggle_layer = true;
@@ -9943,7 +9966,7 @@ bool ImGui::BeginDragDropSource(ImGuiDragDropFlags flags)
             if (g.DragDropAcceptIdPrev && (g.DragDropAcceptFlags & ImGuiDragDropFlags_AcceptNoPreviewTooltip))
             {
                 ImGuiWindow* tooltip_window = g.CurrentWindow;
-                tooltip_window->SkipItems = true;
+                tooltip_window->Hidden = tooltip_window->SkipItems = true;
                 tooltip_window->HiddenFramesCanSkipItems = 1;
             }
         }
