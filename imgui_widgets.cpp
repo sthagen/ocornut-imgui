@@ -1,4 +1,4 @@
-// dear imgui, v1.84
+// dear imgui, v1.85 WIP
 // (widgets code)
 
 /*
@@ -152,9 +152,13 @@ void ImGui::TextEx(const char* text, const char* text_end, ImGuiTextFlags flags)
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return;
-
     ImGuiContext& g = *GImGui;
-    IM_ASSERT(text != NULL);
+
+    // Accept null ranges
+    if (text == text_end)
+        text = text_end = "";
+
+    // Calculate length
     const char* text_begin = text;
     if (text_end == NULL)
         text_end = text + strlen(text); // FIXME-OPT
@@ -3969,13 +3973,15 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     ImGuiItemStatusFlags item_status_flags = 0;
     if (is_multiline)
     {
+        ImVec2 backup_pos = window->DC.CursorPos;
+        ItemSize(total_bb, style.FramePadding.y);
         if (!ItemAdd(total_bb, id, &frame_bb, ImGuiItemAddFlags_Focusable))
         {
-            ItemSize(total_bb, style.FramePadding.y);
             EndGroup();
             return false;
         }
         item_status_flags = g.LastItemData.StatusFlags;
+        window->DC.CursorPos = backup_pos;
 
         // We reproduce the contents of BeginChildFrame() in order to provide 'label' so our window internal data are easier to read/debug.
         PushStyleColor(ImGuiCol_ChildBg, style.Colors[ImGuiCol_FrameBg]);
