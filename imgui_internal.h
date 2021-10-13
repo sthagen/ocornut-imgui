@@ -1,4 +1,4 @@
-// dear imgui, v1.85 WIP
+// dear imgui, v1.85
 // (internal structures/api)
 
 // You may use this file to debug, understand or extend ImGui features but we don't provide any guarantee of forward compatibility!
@@ -744,7 +744,7 @@ enum ImGuiItemFlags_
     ImGuiItemFlags_SelectableDontClosePopup = 1 << 5,  // false     // Disable MenuItem/Selectable() automatically closing their popup window
     ImGuiItemFlags_MixedValue               = 1 << 6,  // false     // [BETA] Represent a mixed/indeterminate value, generally multi-selection where values differ. Currently only supported by Checkbox() (later should support all sorts of widgets)
     ImGuiItemFlags_ReadOnly                 = 1 << 7,  // false     // [ALPHA] Allow hovering interactions but underlying value is not changed.
-    ImGuiItemFlags_Inputable                = 1 << 8   // false     // [WIP] Auto-activate item when focused. Currently only used and supported by a few items before it becomes a generic feature.
+    ImGuiItemFlags_Inputable                = 1 << 8   // false     // [WIP] Auto-activate input mode when tab focused. Currently only used and supported by a few items before it becomes a generic feature.
 };
 
 // Storage for LastItem data
@@ -2192,7 +2192,7 @@ struct ImGuiTableCellData
 };
 
 // FIXME-TABLE: more transient data could be stored in a per-stacked table structure: DrawSplitter, SortSpecs, incoming RowData
-struct ImGuiTable
+struct IMGUI_API ImGuiTable
 {
     ImGuiID                     ID;
     ImGuiTableFlags             Flags;
@@ -2298,14 +2298,14 @@ struct ImGuiTable
     bool                        MemoryCompacted;
     bool                        HostSkipItems;              // Backup of InnerWindow->SkipItem at the end of BeginTable(), because we will overwrite InnerWindow->SkipItem on a per-column basis
 
-    IMGUI_API ImGuiTable()      { memset(this, 0, sizeof(*this)); LastFrameActive = -1; }
-    IMGUI_API ~ImGuiTable()     { IM_FREE(RawData); }
+    ImGuiTable()                { memset(this, 0, sizeof(*this)); LastFrameActive = -1; }
+    ~ImGuiTable()               { IM_FREE(RawData); }
 };
 
 // Transient data that are only needed between BeginTable() and EndTable(), those buffers are shared (1 per level of stacked table).
 // - Accessing those requires chasing an extra pointer so for very frequently used data we leave them in the main table structure.
 // - We also leave out of this structure data that tend to be particularly useful for debugging/metrics.
-struct ImGuiTableTempData
+struct IMGUI_API ImGuiTableTempData
 {
     int                         TableIndex;                 // Index in g.Tables.Buf[] pool
     float                       LastTimeActive;             // Last timestamp this structure was used
@@ -2322,7 +2322,7 @@ struct ImGuiTableTempData
     float                       HostBackupItemWidth;        // Backup of OuterWindow->DC.ItemWidth at the end of BeginTable()
     int                         HostBackupItemWidthStackSize;//Backup of OuterWindow->DC.ItemWidthStack.Size at the end of BeginTable()
 
-    IMGUI_API ImGuiTableTempData() { memset(this, 0, sizeof(*this)); LastTimeActive = -1.0f; }
+    ImGuiTableTempData()        { memset(this, 0, sizeof(*this)); LastTimeActive = -1.0f; }
 };
 
 // sizeof() ~ 12

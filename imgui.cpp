@@ -1,4 +1,4 @@
-// dear imgui, v1.85 WIP
+// dear imgui, v1.85
 // (main code and documentation)
 
 // Help:
@@ -380,7 +380,7 @@ CODE
  When you are not sure about an old symbol or function name, try using the Search/Find function of your IDE to look for comments or references in all imgui files.
  You can read releases logs https://github.com/ocornut/imgui/releases for more details.
 
- - 2021/08/23 (1.85) - removed GetWindowContentRegionWidth() function. keep inline redirection helper. can use 'GetWindowContentRegionMax().x - GetWindowContentRegionMin().x' instead.
+ - 2021/08/23 (1.85) - removed GetWindowContentRegionWidth() function. keep inline redirection helper. can use 'GetWindowContentRegionMax().x - GetWindowContentRegionMin().x' instead for generally 'GetContentRegionAvail().x' is more useful.
  - 2021/07/26 (1.84) - commented out redirecting functions/enums names that were marked obsolete in 1.67 and 1.69 (March 2019):
                         - ImGui::GetOverlayDrawList() -> use ImGui::GetForegroundDrawList()
                         - ImFont::GlyphRangesBuilder  -> use ImFontGlyphRangesBuilder
@@ -3829,7 +3829,10 @@ void ImGui::UpdateTabFocus()
     ImGuiContext& g = *GImGui;
 
     // Pressing TAB activate widget focus
-    g.TabFocusPressed = (g.NavWindow && g.NavWindow->Active && !(g.NavWindow->Flags & ImGuiWindowFlags_NoNavInputs) && !g.IO.KeyCtrl && IsKeyPressedMap(ImGuiKey_Tab) && !IsActiveIdUsingKey(ImGuiKey_Tab));
+    g.TabFocusPressed = false;
+    if (g.NavWindow && g.NavWindow->Active && !(g.NavWindow->Flags & ImGuiWindowFlags_NoNavInputs))
+        if (!g.IO.KeyCtrl && !g.IO.KeyAlt && IsKeyPressedMap(ImGuiKey_Tab) && !IsActiveIdUsingKey(ImGuiKey_Tab))
+            g.TabFocusPressed = true;
     if (g.ActiveId == 0 && g.TabFocusPressed)
     {
         // - This path is only taken when no widget are active/tabbed-into yet.
@@ -6548,8 +6551,18 @@ void ImGui::FocusWindow(ImGuiWindow* window)
 void ImGui::FocusTopMostWindowUnderOne(ImGuiWindow* under_this_window, ImGuiWindow* ignore_window)
 {
     ImGuiContext& g = *GImGui;
-
-    const int start_idx = ((under_this_window != NULL) ? FindWindowFocusIndex(under_this_window) : g.WindowsFocusOrder.Size) - 1;
+    int start_idx = g.WindowsFocusOrder.Size - 1;
+    if (under_this_window != NULL)
+    {
+        // Aim at root window behind us, if we are in a child window that's our own root (see #4640)
+        int offset = -1;
+        while (under_this_window->Flags & ImGuiWindowFlags_ChildWindow)
+        {
+            under_this_window = under_this_window->ParentWindow;
+            offset = 0;
+        }
+        start_idx = FindWindowFocusIndex(under_this_window) + offset;
+    }
     for (int i = start_idx; i >= 0; i--)
     {
         // We may later decide to test for different NoXXXInputs based on the active navigation input (mouse vs nav) but that may feel more confusing to the user.
@@ -7091,15 +7104,17 @@ void ImGui::SetItemDefaultFocus()
     ImGuiWindow* window = g.CurrentWindow;
     if (!window->Appearing)
         return;
-    if (g.NavWindow == window->RootWindowForNav && (g.NavInitRequest || g.NavInitResultId != 0) && g.NavLayer == window->DC.NavLayerCurrent)
-    {
-        g.NavInitRequest = false;
-        g.NavInitResultId = g.LastItemData.ID;
-        g.NavInitResultRectRel = ImRect(g.LastItemData.Rect.Min - window->Pos, g.LastItemData.Rect.Max - window->Pos);
-        NavUpdateAnyRequestFlag();
-        if (!IsItemVisible())
-            SetScrollHereY();
-    }
+    if (g.NavWindow != window->RootWindowForNav || (!g.NavInitRequest && g.NavInitResultId == 0) || g.NavLayer != window->DC.NavLayerCurrent)
+        return;
+
+    g.NavInitRequest = false;
+    g.NavInitResultId = g.LastItemData.ID;
+    g.NavInitResultRectRel = ImRect(g.LastItemData.Rect.Min - window->Pos, g.LastItemData.Rect.Max - window->Pos);
+    NavUpdateAnyRequestFlag();
+
+    // Scroll could be done in NavInitRequestApplyResult() via a opt-in flag (we however don't want regular init requests to scroll)
+    if (!IsItemVisible())
+        ScrollToRectEx(window, g.LastItemData.Rect, ImGuiScrollFlags_None);
 }
 
 void ImGui::SetStateStorage(ImGuiStorage* tree)
@@ -9323,7 +9338,7 @@ static void ImGui::NavUpdate()
     }
     g.NavIdIsAlive = false;
     g.NavJustTabbedId = 0;
-    IM_ASSERT(g.NavLayer == 0 || g.NavLayer == 1);
+    IM_ASSERT(g.NavLayer == ImGuiNavLayer_Main || g.NavLayer == ImGuiNavLayer_Menu);
 
     // Store our return window (for returning from Menu Layer to Main Layer) and clear it as soon as we step back in our own Layer 0
     if (g.NavWindow)
@@ -9799,10 +9814,11 @@ static void ImGui::NavEndFrame()
             }
             do_forward = true;
         }
+        const float decoration_up_height = window->TitleBarHeight() + window->MenuBarHeight();
         if (g.NavMoveDir == ImGuiDir_Up && (move_flags & (ImGuiNavMoveFlags_WrapY | ImGuiNavMoveFlags_LoopY)))
         {
             bb_rel.Min.y = bb_rel.Max.y =
-                ImMax(window->SizeFull.y, window->ContentSize.y + window->WindowPadding.y * 2.0f) - window->Scroll.y;
+                ImMax(window->SizeFull.y, window->ContentSize.y + window->WindowPadding.y * 2.0f) - window->Scroll.y + decoration_up_height;
             if (move_flags & ImGuiNavMoveFlags_WrapY)
             {
                 bb_rel.TranslateX(-bb_rel.GetWidth());
@@ -9812,7 +9828,7 @@ static void ImGui::NavEndFrame()
         }
         if (g.NavMoveDir == ImGuiDir_Down && (move_flags & (ImGuiNavMoveFlags_WrapY | ImGuiNavMoveFlags_LoopY)))
         {
-            bb_rel.Min.y = bb_rel.Max.y = -window->Scroll.y;
+            bb_rel.Min.y = bb_rel.Max.y = -window->Scroll.y + decoration_up_height;
             if (move_flags & ImGuiNavMoveFlags_WrapY)
             {
                 bb_rel.TranslateX(+bb_rel.GetWidth());
@@ -9833,6 +9849,7 @@ static int ImGui::FindWindowFocusIndex(ImGuiWindow* window)
     ImGuiContext& g = *GImGui;
     IM_UNUSED(g);
     int order = window->FocusOrder;
+    IM_ASSERT(window->RootWindow == window); // No child window (not testing _ChildWindow because of docking)
     IM_ASSERT(g.WindowsFocusOrder[order] == window);
     return order;
 }

@@ -31,14 +31,20 @@ HOW TO UPDATE?
 - Please report any issue!
 
 -----------------------------------------------------------------------
- VERSION 1.85 WIP (In Progress)
+ VERSION 1.85 (Released 2021-10-12)
 -----------------------------------------------------------------------
+
+This is the last release officially supporting C++03 and Visual Studio 2008/2010. (#4537)
+We expect that the next release will require a subset of the C++11 language (VS 2012~, GCC 4.8.1, Clang 3.3).
+We may use some C++11 language features but we will not use any C++ library headers.
+If you are stuck on ancient compiler you may need to stay at this version onward.
 
 Breaking Changes:
 
 - Removed GetWindowContentRegionWidth() function. keep inline redirection helper.
   Can use 'GetWindowContentRegionMax().x - GetWindowContentRegionMin().x' instead but it's not
   very useful in practice, and the only use of it in the demo was illfit.
+  Using 'GetContentRegionAvail().x' is generally a better choice.
 
 Other Changes:
 
@@ -54,6 +60,7 @@ Other Changes:
 - InputTextMultiline: Fixed label size not being included into window contents rect unless
   the whole widget is clipped.
 - InputText: Allow activating/cancelling/validating input with gamepad nav events. (#2321, #4552)
+- InputText: Fixed selection rectangle appearing one frame late when selecting all.
 - TextUnformatted: Accept null ranges including (NULL,NULL) without asserting, in order to conform
   to common idioms (e.g. passing .data(), .data() + .size() from a null string). (#3615)
 - Disabled: Added assert guard for mismatching BeginDisabled()/EndDisabled() blocks. (#211)
@@ -65,7 +72,7 @@ Other Changes:
 - Nav: Fixed using SetKeyboardFocusHere() from activating a different item on the next frame if
   submitted items have changed during that frame. (#432)
 - Nav: Fixed toggling menu layer with Alt or exiting menu layer with Esc not moving mouse when
-  the NavEnableSetMousePos config flag is set.
+  the ImGuiConfigFlags_NavEnableSetMousePos config flag is set.
 - Nav: Fixed a few widgets from not setting reference keyboard/gamepad navigation ID when
   activated with mouse. More specifically: BeginTabItem(), the scrolling arrows of BeginTabBar(),
   the arrow section of TreeNode(), the +/- buttons of InputInt()/InputFloat(), Selectable() with
@@ -73,11 +80,12 @@ Other Changes:
   the PressedOnClick/PressedOnDoubleClick/PressedOnRelease button policy.
 - Nav: Fixed an issue with losing focus on docked windows when pressing Alt while keyboard navigation
   is disabled. (#4547, #4439) [@PathogenDavid]
+- Nav: Fixed vertical scoring offset when wrapping on Y in a decorated window.
 - Nav: Improve scrolling behavior when navigating to an item larger than view.
 - TreePush(): removed unnecessary/inconsistent legacy behavior where passing a NULL value to
-  the TreePush(const char*) and TreePush(const void*) functions would use an hardcoded replacement.
+  the TreePush(const char*) and TreePush(const void*) functions would use an hard-coded replacement.
   The only situation where that change would make a meaningful difference is TreePush((const char*)NULL)
-  (_explicitely_ casting a null pointer to const char*), which is unlikely and will now crash.
+  (_explicitly_ casting a null pointer to const char*), which is unlikely and will now crash.
   You may replace it with anything else.
 - ColorEdit4: Fixed not being able to change hue when saturation is 0. (#4014) [@rokups]
 - ColorEdit4: Fixed hue resetting to 0 when it is set to 255. [@rokups]
@@ -85,9 +93,11 @@ Other Changes:
   RGB<>HSV round trips every frames. [@rokups]
 - ColorPicker4: Fixed picker being unable to select exact 1.0f color when dragging toward the edges
   of the SV square (previously picked 0.999989986f). (#3517) [@rokups]
-- Menus: Fixed vertical alignments of MenuItem() calls within a menu bar. (broken in 1.84). (#4538)
-- Menus: Adjust closing logic to accomodate for varying font size and dpi.
+- Menus: Fixed vertical alignments of MenuItem() calls within a menu bar (broken in 1.84). (#4538)
+- Menus: Improve closing logic when moving diagonally in empty between between parent and child menus to
+  accommodate for varying font size and dpi.
 - Menus: Fixed crash when navigating left inside a child window inside a sub-menu. (#4510).
+- Menus: Fixed an assertion happening in some situations when closing nested menus (broken in 1.83). (#4640)
 - Drag and Drop: Fixed using BeginDragDropSource() inside a BeginChild() that returned false. (#4515)
 - PlotHistogram: Fixed zero-line position when manually specifying min<0 and max>0. (#4349) [@filippocrocchini]
 - Misc: Added asserts for missing PopItemFlag() calls.

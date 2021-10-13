@@ -1,4 +1,4 @@
-// dear imgui, v1.85 WIP
+// dear imgui, v1.85
 // (widgets code)
 
 /*
@@ -4118,7 +4118,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     // Lock the decision of whether we are going to take the path displaying the cursor or selection
     const bool render_cursor = (g.ActiveId == id) || (state && user_scroll_active);
-    bool render_selection = state && state->HasSelection() && (RENDER_SELECTION_WHEN_INACTIVE || render_cursor);
+    bool render_selection = state && (state->HasSelection() || select_all) && (RENDER_SELECTION_WHEN_INACTIVE || render_cursor);
     bool value_changed = false;
     bool enter_pressed = false;
 
@@ -7879,9 +7879,7 @@ bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, 
     IMGUI_TEST_ENGINE_ITEM_INFO(id, label, g.LastItemData.StatusFlags);
     if (p_open && !*p_open)
     {
-        PushItemFlag(ImGuiItemFlags_NoNav | ImGuiItemFlags_NoNavDefaultFocus, true);
-        ItemAdd(ImRect(), id);
-        PopItemFlag();
+        ItemAdd(ImRect(), id, NULL, ImGuiItemFlags_NoNav | ImGuiItemFlags_NoNavDefaultFocus);
         return false;
     }
 
@@ -7948,9 +7946,7 @@ bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, 
     // and then gets submitted again, the tabs will have 'tab_appearing=true' but 'tab_is_new=false'.
     if (tab_appearing && (!tab_bar_appearing || tab_is_new))
     {
-        PushItemFlag(ImGuiItemFlags_NoNav | ImGuiItemFlags_NoNavDefaultFocus, true);
-        ItemAdd(ImRect(), id);
-        PopItemFlag();
+        ItemAdd(ImRect(), id, NULL, ImGuiItemFlags_NoNav | ImGuiItemFlags_NoNavDefaultFocus);
         if (is_tab_button)
             return false;
         return tab_contents_visible;
