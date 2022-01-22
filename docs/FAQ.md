@@ -114,7 +114,7 @@ void MyLowLevelMouseButtonHandler(int button, bool down)
 {
     // (1) ALWAYS forward mouse data to ImGui! This is automatic with default backends. With your own backend:
     ImGuiIO& io = ImGui::GetIO();
-    io.MouseDown[button] = down;
+    io.AddMouseButtonEvent(button, down);
 
     // (2) ONLY forward mouse data to your underlying app/game.
     if (!io.WantCaptureMouse)
@@ -139,7 +139,7 @@ void MyLowLevelMouseButtonHandler(int button, bool down)
 - The gamepad/keyboard navigation is fairly functional and keeps being improved. The initial focus was to support game controllers, but keyboard is becoming increasingly and decently usable. Gamepad support is particularly useful to use Dear ImGui on a game console (e.g. PS4, Switch, XB1) without a mouse connected!
 - Keyboard: set `io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard` to enable.
 - Gamepad: set `io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad` to enable (with a supporting backend).
-- See [Control Sheets for Gamepads](http://www.dearimgui.org/controls_sheets) (reference PNG/PSD for for PS4, XB1, Switch gamepads).
+- See [Control Sheets for Gamepads](http://www.dearimgui.org/controls_sheets) (reference PNG/PSD for PS4, XB1, Switch gamepads).
 - See `USING GAMEPAD/KEYBOARD NAVIGATION CONTROLS` section of [imgui.cpp](https://github.com/ocornut/imgui/blob/master/imgui.cpp) for more details.
 
 ##### [Return to Index](#index)
@@ -463,7 +463,7 @@ draw_list->AddCircleFilled(ImVec2(p.x + 50, p.y + 50), 30.0f, IM_COL32(255, 0, 0
 // Draw a 3 pixel thick yellow line
 draw_list->AddLine(ImVec2(p.x, p.y), ImVec2(p.x + 100.0f, p.y + 100.0f), IM_COL32(255, 255, 0, 255), 3.0f);
 
-// Advance the ImGui cursor to claim space in the window (otherwise the window will appears small and needs to be resized)
+// Advance the ImGui cursor to claim space in the window (otherwise the window will appear small and needs to be resized)
 ImGui::Dummy(ImVec2(200, 200));
 
 ImGui::End();
@@ -607,8 +607,8 @@ Text input: it is up to your application to pass the right character code by cal
 The applications in examples/ are doing that.
 Windows: you can use the WM_CHAR or WM_UNICHAR or WM_IME_CHAR message (depending if your app is built using Unicode or MultiByte mode).
 You may also use MultiByteToWideChar() or ToUnicode() to retrieve Unicode codepoints from MultiByte characters or keyboard state.
-Windows: if your language is relying on an Input Method Editor (IME), you copy the HWND of your window to io.ImeWindowHandle in order for
-the default implementation of io.ImeSetInputScreenPosFn() to set your Microsoft IME position correctly.
+Windows: if your language is relying on an Input Method Editor (IME), you can write your HWND to ImGui::GetMainViewport()->PlatformHandleRaw
+in order for the default the default implementation of io.SetPlatformImeDataFn() to set your Microsoft IME position correctly.
 
 ##### [Return to Index](#index)
 
