@@ -18,9 +18,11 @@
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
+//  2022-02-04: Added SDL_Renderer* parameter to ImGui_ImplSDL2_InitForSDLRenderer(), so we can use SDL_GetRendererOutputSize() instead of SDL_GL_GetDrawableSize() when bound to a SDL_Renderer.
+//  2022-01-26: Inputs: replaced short-lived io.AddKeyModsEvent() (added two weeks ago)with io.AddKeyEvent() using ImGuiKey_ModXXX flags. Sorry for the confusion.
 //  2021-01-20: Inputs: calling new io.AddKeyAnalogEvent() for gamepad support, instead of writing directly to io.NavInputs[].
 //  2022-01-17: Inputs: calling new io.AddMousePosEvent(), io.AddMouseButtonEvent(), io.AddMouseWheelEvent() API (1.87+).
-//  2022-01-17: Inputs: always calling io.AddKeyModsEvent() next and before key event (not in NewFrame) to fix input queue with very low framerates.
+//  2022-01-17: Inputs: always update key mods next and before key event (not in NewFrame) to fix input queue with very low framerates.
 //  2022-01-12: Update mouse inputs using SDL_MOUSEMOTION/SDL_WINDOWEVENT_LEAVE + fallback to provide it when focused but not hovered/captured. More standard and will allow us to pass it to future input queue API.
 //  2022-01-12: Maintain our own copy of MouseButtonsDown mask instead of using ImGui::IsAnyMouseDown() which will be obsoleted.
 //  2022-01-10: Inputs: calling new io.AddKeyEvent(), io.AddKeyModsEvent() + io.SetKeyEventNativeData() API (1.87+). Support for full ImGuiKey range.
@@ -77,12 +79,13 @@
 // SDL Data
 struct ImGui_ImplSDL2_Data
 {
-    SDL_Window* Window;
-    Uint64      Time;
-    int         MouseButtonsDown;
-    SDL_Cursor* MouseCursors[ImGuiMouseCursor_COUNT];
-    char*       ClipboardTextData;
-    bool        MouseCanUseGlobalState;
+    SDL_Window*     Window;
+    SDL_Renderer*   Renderer;
+    Uint64          Time;
+    int             MouseButtonsDown;
+    SDL_Cursor*     MouseCursors[ImGuiMouseCursor_COUNT];
+    char*           ClipboardTextData;
+    bool            MouseCanUseGlobalState;
 
     ImGui_ImplSDL2_Data()   { memset(this, 0, sizeof(*this)); }
 };
@@ -171,7 +174,7 @@ static ImGuiKey ImGui_ImplSDL2_KeycodeToImGuiKey(int keycode)
         case SDLK_RSHIFT: return ImGuiKey_RightShift;
         case SDLK_RALT: return ImGuiKey_RightAlt;
         case SDLK_RGUI: return ImGuiKey_RightSuper;
-        case SDLK_MENU: return ImGuiKey_Menu;
+        case SDLK_APPLICATION: return ImGuiKey_Menu;
         case SDLK_0: return ImGuiKey_0;
         case SDLK_1: return ImGuiKey_1;
         case SDLK_2: return ImGuiKey_2;
@@ -227,12 +230,10 @@ static ImGuiKey ImGui_ImplSDL2_KeycodeToImGuiKey(int keycode)
 static void ImGui_ImplSDL2_UpdateKeyModifiers(SDL_Keymod sdl_key_mods)
 {
     ImGuiIO& io = ImGui::GetIO();
-    ImGuiKeyModFlags key_mods =
-        ((sdl_key_mods & KMOD_CTRL) ? ImGuiKeyModFlags_Ctrl : 0) |
-        ((sdl_key_mods & KMOD_SHIFT) ? ImGuiKeyModFlags_Shift : 0) |
-        ((sdl_key_mods & KMOD_ALT) ? ImGuiKeyModFlags_Alt : 0) |
-        ((sdl_key_mods & KMOD_GUI) ? ImGuiKeyModFlags_Super : 0);
-    io.AddKeyModsEvent(key_mods);
+    io.AddKeyEvent(ImGuiKey_ModCtrl, (sdl_key_mods & KMOD_CTRL) != 0);
+    io.AddKeyEvent(ImGuiKey_ModShift, (sdl_key_mods & KMOD_SHIFT) != 0);
+    io.AddKeyEvent(ImGuiKey_ModAlt, (sdl_key_mods & KMOD_ALT) != 0);
+    io.AddKeyEvent(ImGuiKey_ModSuper, (sdl_key_mods & KMOD_GUI) != 0);
 }
 
 // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
@@ -300,7 +301,7 @@ bool ImGui_ImplSDL2_ProcessEvent(const SDL_Event* event)
     return false;
 }
 
-static bool ImGui_ImplSDL2_Init(SDL_Window* window)
+static bool ImGui_ImplSDL2_Init(SDL_Window* window, SDL_Renderer* renderer)
 {
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.BackendPlatformUserData == NULL && "Already initialized a platform backend!");
@@ -324,6 +325,7 @@ static bool ImGui_ImplSDL2_Init(SDL_Window* window)
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;        // We can honor io.WantSetMousePos requests (optional, rarely used)
 
     bd->Window = window;
+    bd->Renderer = renderer;
     bd->MouseCanUseGlobalState = mouse_can_use_global_state;
 
     io.SetClipboardTextFn = ImGui_ImplSDL2_SetClipboardText;
@@ -366,7 +368,7 @@ static bool ImGui_ImplSDL2_Init(SDL_Window* window)
 bool ImGui_ImplSDL2_InitForOpenGL(SDL_Window* window, void* sdl_gl_context)
 {
     IM_UNUSED(sdl_gl_context); // Viewport branch will need this.
-    return ImGui_ImplSDL2_Init(window);
+    return ImGui_ImplSDL2_Init(window, NULL);
 }
 
 bool ImGui_ImplSDL2_InitForVulkan(SDL_Window* window)
@@ -374,7 +376,7 @@ bool ImGui_ImplSDL2_InitForVulkan(SDL_Window* window)
 #if !SDL_HAS_VULKAN
     IM_ASSERT(0 && "Unsupported");
 #endif
-    return ImGui_ImplSDL2_Init(window);
+    return ImGui_ImplSDL2_Init(window, NULL);
 }
 
 bool ImGui_ImplSDL2_InitForD3D(SDL_Window* window)
@@ -382,17 +384,17 @@ bool ImGui_ImplSDL2_InitForD3D(SDL_Window* window)
 #if !defined(_WIN32)
     IM_ASSERT(0 && "Unsupported");
 #endif
-    return ImGui_ImplSDL2_Init(window);
+    return ImGui_ImplSDL2_Init(window, NULL);
 }
 
 bool ImGui_ImplSDL2_InitForMetal(SDL_Window* window)
 {
-    return ImGui_ImplSDL2_Init(window);
+    return ImGui_ImplSDL2_Init(window, NULL);
 }
 
-bool ImGui_ImplSDL2_InitForSDLRenderer(SDL_Window* window)
+bool ImGui_ImplSDL2_InitForSDLRenderer(SDL_Window* window, SDL_Renderer* renderer)
 {
-    return ImGui_ImplSDL2_Init(window);
+    return ImGui_ImplSDL2_Init(window, renderer);
 }
 
 void ImGui_ImplSDL2_Shutdown()
@@ -521,7 +523,10 @@ void ImGui_ImplSDL2_NewFrame()
     SDL_GetWindowSize(bd->Window, &w, &h);
     if (SDL_GetWindowFlags(bd->Window) & SDL_WINDOW_MINIMIZED)
         w = h = 0;
-    SDL_GL_GetDrawableSize(bd->Window, &display_w, &display_h);
+    if (bd->Renderer != NULL)
+        SDL_GetRendererOutputSize(bd->Renderer, &display_w, &display_h);
+    else
+        SDL_GL_GetDrawableSize(bd->Window, &display_w, &display_h);
     io.DisplaySize = ImVec2((float)w, (float)h);
     if (w > 0 && h > 0)
         io.DisplayFramebufferScale = ImVec2((float)display_w / w, (float)display_h / h);
