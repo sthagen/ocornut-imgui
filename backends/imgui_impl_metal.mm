@@ -350,6 +350,7 @@ void ImGui_ImplMetal_DestroyDeviceObjects()
     return renderPipelineState;
 }
 
+// Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
 - (id<MTLRenderPipelineState>)_renderPipelineStateForFramebufferDescriptor:(FramebufferDescriptor *)descriptor device:(id<MTLDevice>)device
 {
     NSError *error = nil;
@@ -582,8 +583,11 @@ void ImGui_ImplMetal_DestroyDeviceObjects()
         vertexBufferOffset += (size_t)cmd_list->VtxBuffer.Size * sizeof(ImDrawVert);
         indexBufferOffset += (size_t)cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx);
     }
-
+#if __has_feature(objc_arc)
     __weak id weakSelf = self;
+#else
+    __unsafe_unretained id weakSelf = self;
+#endif
     [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>)
     {
         dispatch_async(dispatch_get_main_queue(), ^{
