@@ -54,8 +54,14 @@ Other Changes:
   Not that even thought you shouldn't need to disable io.ConfigInputTrickleEventQueue, you can
   technically dynamically change its setting based on the context (e.g. disable only when hovering
   or interacting with a game/3D view).
+- Windows: Fixed first-time windows appearing in negative coordinates from being initialized
+  with a wrong size. This would most often be noticeable in multi-viewport mode (docking branch)
+  when spawning a window in a monitor with negative coordinates. (#5215, #3414) [@DimaKoltun]
 - Clipper: Fixed a regression in 1.86 when not calling clipper.End() and late destructing the
   clipper instance. High-level languages (Lua,Rust etc.) would typically be affected. (#4822)
+- Layout: Fixed mixing up SameLine() and SetCursorPos() together from creating situations where line
+  height would be emitted from the wrong location (e.g. 'ItemA+SameLine()+SetCursorPos()+ItemB' would
+  emit ItemA worth of height from the position of ItemB, which is not necessarily aligned with ItemA).
 - Sliders, Drags: Fixed dragging when using hexadecimal display format string. (#5165, #3133)
 - Sliders, Drags: Fixed manual input when using hexadecimal display format string. (#5165, #3133)
 - InputScalar: Fixed manual input when using %03d style width in display format string. (#5165, #3133)
@@ -93,7 +99,7 @@ Other Changes:
 - Backends: SDL: Added support for extra mouse buttons (SDL_BUTTON_X1/SDL_BUTTON_X2). (#5125) [@sgiurgiu]
 - Backends: SDL, OpenGL3: Fixes to facilitate building on AmigaOS4. (#5190) [@afxgroup]
 - Backends: OSX: Monitor NSKeyUp events to catch missing keyUp for key when user press Cmd + key (#5128) [@thedmd]
-- Examples: Emscripten: Fix building for latest Emscripten specs. (#3632)
+- Examples: Emscripten+WebGPU: Fix building for latest WebGPU specs. (#3632)
 
 
 -----------------------------------------------------------------------
@@ -109,6 +115,7 @@ Breaking Changes:
   - Added io.AddMousePosEvent(), io.AddMouseButtonEvent(), io.AddMouseWheelEvent() functions,
     obsoleting writing directly to io.MousePos, io.MouseDown[], io.MouseWheel, etc.
   - This enable input queue trickling to support low framerates. (#2787, #1992, #3383, #2525, #1320)
+  - For all calls to IO new functions, the Dear ImGui context should be bound/current.
 - Reworked IO keyboard input API: (#4921, #2625, #3724) [@thedmd, @ocornut]
   - Added io.AddKeyEvent() function, obsoleting writing directly to io.KeyMap[], io.KeysDown[] arrays.
   - For keyboard modifiers, you can call io.AddKeyEvent() with ImGuiKey_ModXXX values,
