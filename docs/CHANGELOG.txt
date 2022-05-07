@@ -39,6 +39,10 @@ Breaking changes:
 
 - Renamed ImGuiKeyModFlags to ImGuiModFlags. Kept inline redirection enums (will obsolete).
   (This was never used in public API functions but technically present in imgui.h and ImGuiIO).
+- Backends: OSX: Removed ImGui_ImplOSX_HandleEvent() from backend API in favor of backend
+  automatically handling event capture. Examples that are using the OSX backend have removed
+  all the now-unnecessary calls to ImGui_ImplOSX_HandleEvent(), applications can do as well.
+  [@stuartcarnie] (#4821)
 
 Other Changes:
 
@@ -74,6 +78,7 @@ Other Changes:
   trickled with the new input queue (happened on some backends only). (#2467, #1336)
 - Tables: Fixed incorrect border height used for logic when resizing one of several synchronized
   instance of a same table ID, when instances have a different height. (#3955).
+- Tables: Fixed incorrect auto-fit of parent windows when using non-resizable weighted columns. (#5276)
 - Inputs: Fixed IsMouseClicked() repeat mode rate being half of keyboard repeat rate.
 - ColorEdit: Fixed text baseline alignment after a SameLine() after a ColorEdit() with visible label.
 - Menus: Adjusted BeginMenu() closing logic so hovering void or non-MenuItem() in parent window
@@ -82,6 +87,9 @@ Other Changes:
 - Stack Tool: Added option to copy item path to clipboard. (#4631)
 - Drawlist: Fixed PathArcTo() emitting terminating vertices too close to arc vertices. (#4993) [@thedmd]
 - DrawList: Fixed texture-based anti-aliasing path with RGBA textures (#5132, #3245) [@cfillion]
+- Debug: Added DebugTextEncoding() function to facilitate diagnosing issues when not sure about whether
+  you have a UTF-8 text encoding issue or a font loading issue. [@LaMarche05, @ocornut]
+- Metrics: Added a "UTF-8 Encoding Viewer" section using the aforementioned DebugTextEncoding() function.
 - Misc: Fixed calling GetID("label") _before_ a widget emitting this item inside a group (such as InputInt())
   from causing an assertion when closing the group. (#5181).
 - Misc: Fixed IsAnyItemHovered() returning false when using navigation.
@@ -93,6 +101,7 @@ Other Changes:
 - Misc: Updated stb_rect_pack.h from 1.00 to 1.01 (minor). (#5075)
 - Misc: binary_to_compressed_c tool: Added -nostatic option. (#5021) [@podsvirov]
 - ImVector: Fixed erase() with empty range. (#5009) [@thedmd]
+- Backends: Vulkan: Don't use VK_PRESENT_MODE_MAX_ENUM_KHR as specs state it isn't part of the API. (#5254)
 - Backends: GLFW: Fixed a regression in 1.87 which resulted in keyboard modifiers events being
   reported incorrectly on Linux/X11, due to a bug in GLFW. [@rokups]
 - Backends: GLFW: Fixed untranslated keys when pressing lower case letters on OSX (#5260, #5261) [@cpichard]
@@ -103,6 +112,7 @@ Other Changes:
 - Backends: OSX, Metal: Store backend data in a per-context struct, allowing to use these backends with
   multiple contexts. (#5203, #5221, #4141) [@noisewuwei]
 - Examples: Emscripten+WebGPU: Fix building for latest WebGPU specs. (#3632)
+- Examples: OSX+Metal, OSX+OpenGL: Removed now-unnecessary calls to ImGui_ImplOSX_HandleEvent(). (#4821)
 
 
 -----------------------------------------------------------------------
