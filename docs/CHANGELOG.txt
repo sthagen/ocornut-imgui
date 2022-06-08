@@ -88,7 +88,9 @@ Other Changes:
   trickled with the new input queue (happened on some backends only). (#2467, #1336)
 - InputText: Fixed a one-frame display glitch where pressing Escape to revert after a deletion
   would lead to small garbage being displayed for one frame. Curiously a rather old bug! (#3008)
-- InputText: Fixed an undo-state corruption issue when editing buffer before reactivating item. (#4947)
+- InputText: Fixed an undo-state corruption issue when editing main buffer before reactivating item. (#4947)
+- InputText: Fixed an undo-state corruption issue when editing in-flight buffer in user callback.
+  (#4947, #4949] [@JoshuaWebb]
 - Tables: Fixed incorrect border height used for logic when resizing one of several synchronized
   instance of a same table ID, when instances have a different height. (#3955).
 - Tables: Fixed incorrect auto-fit of parent windows when using non-resizable weighted columns. (#5276)
@@ -99,6 +101,8 @@ Other Changes:
 - Menus: Adjusted BeginMenu() closing logic so hovering void or non-MenuItem() in parent window
   always lead to menu closure. Fixes using items that are not MenuItem() or BeginItem() at the root
   level of a popup with a child menu opened.
+- Menus: Menus emitted from the main/scrolling layer are not part of the same menuset as menus emitted
+  from the menu-bar, avoiding  accidental hovering from one to the other. (#3496, #4797) [@rokups]
 - Stack Tool: Added option to copy item path to clipboard. (#4631)
 - Settings: Fixed out-of-bounds read when .ini file on disk is empty. (#5351) [@quantum5]
 - DrawList: Fixed PathArcTo() emitting terminating vertices too close to arc vertices. (#4993) [@thedmd]
