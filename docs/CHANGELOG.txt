@@ -37,6 +37,8 @@ HOW TO UPDATE?
 
 Breaking changes:
 
+- Renamed IMGUI_DISABLE_METRICS_WINDOW to IMGUI_DISABLE_DEBUG_TOOLS for correctness.
+  Kept support for old define (will obsolete).
 - Renamed CaptureMouseFromApp() and CaptureKeyboardFromApp() to SetNextFrameWantCaptureMouse()
   and SetNextFrameWantCaptureKeyboard() to clarify purpose, old name was too misleading.
   Kept inline redirection functions (will obsolete).
@@ -84,6 +86,7 @@ Other Changes:
 - Nav: Fixed nav movement in a scope with only one disabled item from focusing the disabled item. (#5189)
 - Nav: Fixed issues with nav request being transferred to another window when calling SetKeyboardFocusHere()
   and simultaneous changing window focus. (#4449)
+- Nav: Changed SetKeyboardFocusHere() to not behave if a drag or window moving is in progress.
 - IsItemHovered(): added ImGuiHoveredFlags_NoNavOverride to disable the behavior where the
   return value is overriden by focus when gamepad/keyboard navigation is active.
 - InputText: Fixed pressing Tab emitting two tabs characters because of dual Keys/Chars events being
@@ -107,6 +110,7 @@ Other Changes:
   from the menu-bar, avoiding  accidental hovering from one to the other. (#3496, #4797) [@rokups]
 - Stack Tool: Added option to copy item path to clipboard. (#4631)
 - Settings: Fixed out-of-bounds read when .ini file on disk is empty. (#5351) [@quantum5]
+- Settings: Fixed some SetNextWindowPos/SetNextWindowSize API calls not marking settings as dirty.
 - DrawList: Fixed PathArcTo() emitting terminating vertices too close to arc vertices. (#4993) [@thedmd]
 - DrawList: Fixed texture-based anti-aliasing path with RGBA textures (#5132, #3245) [@cfillion]
 - DrawList: Fixed divide-by-zero or glitches with Radius/Rounding values close to zero. (#5249, #5293, #3491)
