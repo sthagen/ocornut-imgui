@@ -107,16 +107,29 @@ Other Changes:
 - Popups & Modals: fixed nested Begin() being erroneously input-inhibited. While it is
   unusual, you can nest a Begin() inside a popup or modal, it is occasionally useful to
   achieve certains things (e.g. some ways to implement suggestion popup #718, #4461).
+- Inputs: Standard widgets now claim for key/button ownership and test for them.
+  - Fixes scenario where e.g. a Popup with a Selectable() reacting on mouse down
+    (e.g. double click) closes, and behind it is another window with an item reacting
+    on mouse up. Previously this would lead to both items reacting, now the item in the
+    window behind won't react on the mouse up since the mouse button ownership has already
+    been claimed earlier.
+  - Internals: There are MANY more aspects to this changes. Added experimental/internal APIs
+    to allow handling input/shorting routing and key ownership. Things will be moved into
+    public APIs over time. For now this release is a way to test the solidity of underlying
+    systems while letting early adopters adopters toy with internals.
+    (#456, #2637, #2620, #2891, #3370, #3724, #4828, #5108, #5242, #5641)
 - Scrolling: Tweak mouse-wheel locked window timer so it is shorter but also gets reset
   whenever scrolling again (#2604).
 - Scrolling: Mitigated issue where multi-axis mouse-wheel inputs (usually from touch pad
   events) are incorrectly locking scrolling in a parent window. (#4559, #3795, #2604)
+- Scrolling: Exposed SetNextWindowScroll() in public API. Useful to remove a scrolling
+  delay in some situations where e.g. windows need to be synched. (#1526)
 - InputText: added experimental io.ConfigInputTextEnterKeepActive feature to make pressing
   Enter keep the input active and select all text.
 - InputText: numerical fields automatically accept full-width characters (U+FF01..U+FF5E)
   by converting them to half-width (U+0021..U+007E).
 - InputText: added ImGuiInputTextFlags_EscapeClearsAll flag: first press on Escape clears
-  text if any, second press deactivate the InputText(). (#5688)
+  text if any, second press deactivate the InputText(). (#5688, #2620)
 - InputText: added support for shift+click style selection. (#5619) [@procedural]
 - InputText: clarified that callbacks cannot modify buffer when using the ReadOnly flag.
 - InputText: fixed minor one-frame selection glitch when reverting with Escape.
@@ -193,13 +206,17 @@ Other Changes:
   (e.g. for multi-viewport support) and don't capture mouse when drag and dropping. (#5710)
 - Backends: Win32: Convert WM_CHAR values with MultiByteToWideChar() when window class was
   registered as MBCS (not Unicode). (#5725, #1807, #471, #2815, #1060) [@or75, @ocornut]
+- Backends: OSX: Fixed mouse inputs on flipped views. (#5756) [@Nemirtingas]
+- Backends: OSX: Fixed mouse coordinate before clicking on the host window. (#5842) [@maezawa-akira]
+- Backends: OSX: Fixes to support full app creation in C++. (#5403) [@stack]
+- Backends: OpenGL3: Reverted use of glBufferSubData(), too many corruptions issues were reported,
+  and old leaks issues seemingly can't be reproed with Intel drivers nowadays (revert earlier changes).
+  (#4468, #4504, #3381, #2981, #4825, #4832, #5127).
 - Backends: Metal: Use __bridge for ARC based systems. (#5403) [@stack]
 - Backends: Metal: Add dispatch synchronization. (#5447) [@luigifcruz]
 - Backends: Metal: Update deprecated property 'sampleCount'->'rasterSampleCount'. (#5603) [@dcvz]
 - Backends: Vulkan: Added experimental ImGui_ImplVulkan_RemoveTexture() for api symetry. (#914, #5738).
-- Backends: OSX: Fixed mouse inputs on flipped views. (#5756) [@Nemirtingas]
-- Backends: OSX: Fixed mouse coordinate before clicking on the host window. (#5842) [@maezawa-akira]
-- Backends: OSX: Fixes to support full app creation in C++. (#5403) [@stack]
+- Backends: WebGPU: fixed rendering when a depth buffer is enabled. (#5869) [@brainlag]
 
 
 -----------------------------------------------------------------------
