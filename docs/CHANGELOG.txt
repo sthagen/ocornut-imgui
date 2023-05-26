@@ -41,11 +41,16 @@ Breaking changes:
    'ImGuiListClipper(int items_count, float items_height)' --> Use 'ImGuiListClipper() + clipper.Begin()'.
 - Clipper: Renamed ForceDisplayRangeByIndices() to IncludeRangeByIndices(), kept
   inline redirection function (introduced in 1.86 and rarely used). (#6424, #3841)
+- Commented out obsolete/redirecting functions that were marked obsolete more than two years ago:
+   - ListBoxHeader()  -> use BeginListBox()
+   - ListBoxFooter()  -> use EndListBox()
+   - Note how two variants of ListBoxHeader() existed. Check commented versions in imgui.h for refeence.
 - Backends: GLUT: Removed call to ImGui::NewFrame() from ImGui_ImplGLUT_NewFrame().
   It needs to be called from the main app loop, like with every other backends. (#6337) [@GereonV]
 
 Other changes:
 
+- Window: Fixed resizing from upper border when io.ConfigWindowsMoveFromTitleBarOnly is set. (#6390)
 - Tables: Fixed a small miscalculation in TableHeader() leading to an empty tooltip
   showing when a sorting column has no visible name. (#6342) [@lukaasm]
 - Tables: Fixed command merging when compiling with VS2013 (one array on stack was not
@@ -65,6 +70,7 @@ Other changes:
   erroneously initializing default nav layer to menu layer.
 - Menus: Fixed an issue when opening a menu hierarchy in a given menu-bar would allow
   opening another via simple hovering. (#3496, #4797)
+- Fonts: Fixed crash when merging fonts and the first font has no valid glyph. (#6446) [@JaedanC]
 - Misc: Added ImVec2 unary minus operator. (#6368) [@Koostosh]
 - Debug Tools: Debug Log: Fixed not parsing 0xXXXXXXXX values for geo-locating on mouse
   hover hover when the identifier is at the end of the line. (#5855)
