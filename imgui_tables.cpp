@@ -1779,7 +1779,7 @@ void ImGui::TableBeginRow(ImGuiTable* table)
     table->RowTextBaseline = 0.0f;
     table->RowIndentOffsetX = window->DC.Indent.x - table->HostIndentX; // Lock indent
     window->DC.PrevLineTextBaseOffset = 0.0f;
-    window->DC.CurrLineSize = ImVec2(0.0f, 0.0f);
+    window->DC.PrevLineSize = window->DC.CurrLineSize = ImVec2(0.0f, 0.0f); // This allows users to call SameLine() to share LineSize between columns, and to call it from first column too.
     window->DC.IsSameLine = window->DC.IsSetPos = false;
     window->DC.CursorMaxPos.y = next_y1;
 
@@ -2016,6 +2016,7 @@ void ImGui::TableBeginCell(ImGuiTable* table, int column_n)
     window->DC.CursorPos.y = table->RowPosY1 + table->CellPaddingY;
     window->DC.CursorMaxPos.x = window->DC.CursorPos.x;
     window->DC.ColumnsOffset.x = start_x - window->Pos.x - window->DC.Indent.x; // FIXME-WORKRECT
+    window->DC.CursorPosPrevLine = window->DC.CursorPos; // This allows users to call SameLine() to share LineSize between columns.
     window->DC.CurrLineTextBaseOffset = table->RowTextBaseline;
     window->DC.NavLayerCurrent = (ImGuiNavLayer)column->NavLayerCurrent;
 
@@ -2672,8 +2673,9 @@ void ImGui::TableDrawBorders(ImGuiTable* table)
 //-------------------------------------------------------------------------
 
 // Return NULL if no sort specs (most often when ImGuiTableFlags_Sortable is not set)
-// You can sort your data again when 'SpecsChanged == true'. It will be true with sorting specs have changed since
-// last call, or the first time.
+// When 'sort_specs->SpecsDirty == true' you should sort your data. It will be true when sorting specs have
+// changed since last call, or the first time. Make sure to set 'SpecsDirty = false' after sorting,
+// else you may wastefully sort your data every frame!
 // Lifetime: don't hold on this pointer over multiple frames or past any subsequent call to BeginTable()!
 ImGuiTableSortSpecs* ImGui::TableGetSortSpecs()
 {
