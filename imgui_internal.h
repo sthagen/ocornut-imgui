@@ -2551,6 +2551,8 @@ struct IMGUI_API ImGuiTabBar
     float               ScrollingSpeed;
     float               ScrollingRectMinX;
     float               ScrollingRectMaxX;
+    float               SeparatorMinX;
+    float               SeparatorMaxX;
     ImGuiID             ReorderRequestTabId;
     ImS16               ReorderRequestOffset;
     ImS8                BeginCount;
@@ -3057,6 +3059,7 @@ namespace ImGui
     IMGUI_API float         GetNavTweakPressedAmount(ImGuiAxis axis);
     IMGUI_API int           CalcTypematicRepeatAmount(float t0, float t1, float repeat_delay, float repeat_rate);
     IMGUI_API void          GetTypematicRepeatRate(ImGuiInputFlags flags, float* repeat_delay, float* repeat_rate);
+    IMGUI_API void          TeleportMousePos(const ImVec2& pos);
     IMGUI_API void          SetActiveIdUsingAllKeyboardKeys();
     inline bool             IsActiveIdUsingNavDir(ImGuiDir dir)                         { ImGuiContext& g = *GImGui; return (g.ActiveIdUsingNavDirMask & (1 << dir)) != 0; }
 
