@@ -507,7 +507,7 @@ namespace ImGui
     // - Most widgets return true when the value has been changed or when pressed/selected
     // - You may also use one of the many IsItemXXX functions (e.g. IsItemActive, IsItemHovered, etc.) to query widget state.
     IMGUI_API bool          Button(const char* label, const ImVec2& size = ImVec2(0, 0));   // button
-    IMGUI_API bool          SmallButton(const char* label);                                 // button with FramePadding=(0,0) to easily embed within text
+    IMGUI_API bool          SmallButton(const char* label);                                 // button with (FramePadding.y == 0) to easily embed within text
     IMGUI_API bool          InvisibleButton(const char* str_id, const ImVec2& size, ImGuiButtonFlags flags = 0); // flexible button behavior without the visuals, frequently useful to build custom behaviors using the public api (along with IsItemActive, IsItemHovered, etc.)
     IMGUI_API bool          ArrowButton(const char* str_id, ImGuiDir dir);                  // square button with an arrow shape
     IMGUI_API bool          Checkbox(const char* label, bool* v);
@@ -1115,6 +1115,7 @@ enum ImGuiComboFlags_
     ImGuiComboFlags_HeightLargest           = 1 << 4,   // As many fitting items as possible
     ImGuiComboFlags_NoArrowButton           = 1 << 5,   // Display on the preview box without the square arrow button
     ImGuiComboFlags_NoPreview               = 1 << 6,   // Display only a square arrow button
+    ImGuiComboFlags_WidthFitPreview         = 1 << 7,   // Width dynamically calculated from preview contents
     ImGuiComboFlags_HeightMask_             = ImGuiComboFlags_HeightSmall | ImGuiComboFlags_HeightRegular | ImGuiComboFlags_HeightLarge | ImGuiComboFlags_HeightLargest,
 };
 
