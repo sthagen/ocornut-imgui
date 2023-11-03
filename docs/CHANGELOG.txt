@@ -42,6 +42,23 @@ HOW TO UPDATE?
 
 Breaking changes:
 
+ - BeginChild(): Upgraded 'bool border = false' parameter to 'ImGuiChildFlags flags'.
+   Added ImGuiChildFlags_Border value. As with our prior "bool-to-flags" API updates,
+   the ImGuiChildFlags_Border value is guaranteed to be == true forever to ensure a
+   smoother transition, meaning all existing calls will still work.
+   If you want to neatly transition your call sites:
+      Before:  BeginChild("Name", size, true)
+      After:   BeginChild("Name", size, ImGuiChildFlags_Border)
+      Before:  BeginChild("Name", size, false)
+      After:   BeginChild("Name", size) or BeginChild("Name", 0) or BeginChild("Name", size, ImGuiChildFlags_None)
+   Kept inline redirection function (will obsolete later) so existing code will work.
+ - BeginChild(): Added child-flag ImGuiChildFlags_AlwaysUseWindowPadding as a replacement for
+   the window-flag ImGuiWindowFlags_AlwaysUseWindowPadding: the feature only ever made sense
+   for use with BeginChild() anyhow, passing it to Begin() had no effect. Now that we accept
+   child-flags we are moving it there. (#462)
+      Before:  BeginChild("Name", size, 0, ImGuiWindowFlags_AlwaysUseWindowPadding);
+      After:   BeginChild("Name", size, ImGuiChildFlags_AlwaysUseWindowPadding, 0);
+   Kept inline redirection enum (will obsolete later) so existing code will work.
  - Debug Tools: Renamed ShowStackToolWindow() ("Stack Tool") to ShowIDStackToolWindow() ("ID Stack Tool"),
    as earlier name was misleading. Kept inline redirection function. (#4631)
  - IO: Removed io.MetricsActiveAllocations introduced in 1.63, was displayed in Metrics and unlikely to
@@ -68,6 +85,10 @@ Breaking changes:
 Other changes:
 
 - Windows:
+  - BeginChild(): Added ImGuiChildFlags_ResizeX and ImGuiChildFlags_ResizeY to allow resizing
+    child windows from the bottom/right border (toward layout direction). Resized child windows
+    settings are saved and persistent in .ini file. (#1666, #1496, #1395, #1710)
+  - BeginChild(): Added ImGuiChildFlags_Border as a replacement for 'bool border = true' parameter.
   - BeginChild(): Internal name used by child windows now omits the hash/id if the child
     window is submitted in root of id stack of parent window. Makes debugging/metrics easier
     and shorter to read in many cases.
@@ -75,6 +96,9 @@ Other changes:
     to false when popup is closed in ways other than clicking the close button. (#6900)
   - Double-clicking lower-left resize grip auto-resize (like lower-rightone).
   - Double-clicking bottom or right window border auto-resize on a singles axis.
+  - Use relative mouse movement for border resize when the border geometry has moved
+    (e.g. resizing a child window triggering parent scroll) in order to avoid resizing
+    feedback loops. Unless manually mouse-wheeling while border resizing. (#1710)
 - Separators:
   - Altered end-points to use more standard boundaries. (#205, #4787, #1643)
     Left position is always current cursor X position, right position is always work-rect
