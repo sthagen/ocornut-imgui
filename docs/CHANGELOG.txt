@@ -42,6 +42,8 @@ HOW TO UPDATE?
 
 Breaking changes:
 
+- DragScalarN, SliderScalarN, InputScalarN: Fixed incorrect pushes into ItemWidth
+  stack when number of components is 1. [#7095] [@Nahor]
 - imgui_freetype: commented out ImGuiFreeType::BuildFontAtlas() obsoleted in 1.81.
   Prefer using #define IMGUI_ENABLE_FREETYPE or see commented code for manual calls.
 - Removed CalcListClipping() marked obsolete in 1.86. (#3841)
@@ -53,6 +55,8 @@ Other changes:
 
 - Windows: BeginChild(): Fixed auto-resizing erroneously limiting size to host viewport
   minus padding. There are no limit to a child width/height. (#7063) [@Devyre]
+- Scrolling: internal scrolling value is rounded instead of truncated, as a way to reduce
+  speed asymetry when (incorrectly) attempting to scroll by non-integer amount. (#6677)
 - Nav, IO: SetNextFrameWantCaptureKeyboard(false) calls are not overrided back to true when
   navigation is enabled. SetNextFrameWantCaptureKeyboard() is always higher priority. (#6997)
 - Drag and Drop: Fixed drop target highlight on items temporarily pushing a widened clip rect
@@ -3463,6 +3467,8 @@ Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v
 
 Breaking Changes:
 
+- Tabs: Added ImGuiTabItemFlags_NoAssumedClosure to enable app to react on closure attempt, without having to draw
+  an unsaved document marker (ImGuiTabItemFlags_UnsavedDocument sets _NoAssumedClosure automatically). (#7084)
 - DragInt(): The default compile-time format string has been changed from "%.0f" to "%d", as we are not using integers internally
   any more. If you used DragInt() with custom format strings, make sure you change them to use %d or an integer-compatible format.
   To honor backward-compatibility, the DragInt() code will currently parse and modify format strings to replace %*f with %d,

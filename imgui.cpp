@@ -8294,22 +8294,25 @@ static int CalcRoutingScore(ImGuiWindow* location, ImGuiID owner_id, ImGuiInputF
         if (owner_id != 0 && g.ActiveId == owner_id)
             return 1;
 
+        // Early out when not in focus stack
+        if (focused == NULL || focused->RootWindow != location->RootWindow)
+            return 255;
+
         // Score based on distance to focused window (lower is better)
         // Assuming both windows are submitting a routing request,
         // - When Window....... is focused -> Window scores 3 (best), Window/ChildB scores 255 (no match)
         // - When Window/ChildB is focused -> Window scores 4,        Window/ChildB scores 3 (best)
         // Assuming only WindowA is submitting a routing request,
         // - When Window/ChildB is focused -> Window scores 4 (best), Window/ChildB doesn't have a score.
-        if (focused != NULL && focused->RootWindow == location->RootWindow)
-            for (int next_score = 3; focused != NULL; next_score++)
+        for (int next_score = 3; focused != NULL; next_score++)
+        {
+            if (focused == location)
             {
-                if (focused == location)
-                {
-                    IM_ASSERT(next_score < 255);
-                    return next_score;
-                }
-                focused = (focused->RootWindow != focused) ? focused->ParentWindow : NULL; // FIXME: This could be later abstracted as a focus path
+                IM_ASSERT(next_score < 255);
+                return next_score;
             }
+            focused = (focused->RootWindow != focused) ? focused->ParentWindow : NULL; // FIXME: This could be later abstracted as a focus path
+        }
         return 255;
     }
 
@@ -9861,7 +9864,8 @@ void ImGui::PushMultiItemsWidths(int components, float w_full)
     const float w_item_one  = ImMax(1.0f, IM_TRUNC((w_full - (style.ItemInnerSpacing.x) * (components - 1)) / (float)components));
     const float w_item_last = ImMax(1.0f, IM_TRUNC(w_full - (w_item_one + style.ItemInnerSpacing.x) * (components - 1)));
     window->DC.ItemWidthStack.push_back(window->DC.ItemWidth); // Backup current width
-    window->DC.ItemWidthStack.push_back(w_item_last);
+    if (components > 1)
+        window->DC.ItemWidthStack.push_back(w_item_last);
     for (int i = 0; i < components - 2; i++)
         window->DC.ItemWidthStack.push_back(w_item_one);
     window->DC.ItemWidth = (components == 1) ? w_item_last : w_item_one;
@@ -10118,7 +10122,7 @@ static ImVec2 CalcNextScrollFromScrollTargetAndClamp(ImGuiWindow* window)
             }
             scroll[axis] = scroll_target - center_ratio * (window->SizeFull[axis] - decoration_size[axis]);
         }
-        scroll[axis] = IM_TRUNC(ImMax(scroll[axis], 0.0f));
+        scroll[axis] = IM_ROUND(ImMax(scroll[axis], 0.0f));
         if (!window->Collapsed && !window->SkipItems)
             scroll[axis] = ImMin(scroll[axis], window->ScrollMax[axis]);
     }
