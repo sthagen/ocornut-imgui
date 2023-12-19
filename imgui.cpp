@@ -424,6 +424,7 @@ CODE
  When you are not sure about an old symbol or function name, try using the Search/Find function of your IDE to look for comments or references in all imgui files.
  You can read releases logs https://github.com/ocornut/imgui/releases for more details.
 
+ - 2023/12/19 (1.90.1) - commented out obsolete ImGuiKey_KeyPadEnter redirection to ImGuiKey_KeypadEnter.
  - 2023/11/06 (1.90.1) - removed CalcListClipping() marked obsolete in 1.86. Prefer using ImGuiListClipper which can return non-contiguous ranges.
  - 2023/11/05 (1.90.1) - imgui_freetype: commented out ImGuiFreeType::BuildFontAtlas() obsoleted in 1.81. prefer using #define IMGUI_ENABLE_FREETYPE or see commented code for manual calls.
  - 2023/11/05 (1.90.1) - internals,columns: commented out legacy ImGuiColumnsFlags_XXX symbols redirecting to ImGuiOldColumnsFlags_XXX, obsoleted from imgui_internal.h in 1.80.
@@ -6420,7 +6421,8 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
 
     // Add to focus scope stack
     // We intentionally set g.CurrentWindow to NULL to prevent usage until when the viewport is set, then will call SetCurrentWindow()
-    PushFocusScope(window->ID);
+    if ((flags & ImGuiWindowFlags_NavFlattened) == 0)
+        PushFocusScope(window->ID);
     window->NavRootFocusScopeId = g.CurrentFocusScopeId;
     g.CurrentWindow = NULL;
 
@@ -7061,7 +7063,8 @@ void ImGui::End()
     if (window->DC.CurrentColumns)
         EndColumns();
     PopClipRect();   // Inner window clip rectangle
-    PopFocusScope();
+    if ((window->Flags & ImGuiWindowFlags_NavFlattened) == 0)
+        PopFocusScope();
 
     // Stop logging
     if (!(window->Flags & ImGuiWindowFlags_ChildWindow))    // FIXME: add more options for scope of logging
@@ -7630,7 +7633,7 @@ void ImGui::SetWindowHitTestHole(ImGuiWindow* window, const ImVec2& pos, const I
     window->HitTestHoleOffset = ImVec2ih(pos - window->Pos);
 }
 
-void ImGui::SetWindowHiddendAndSkipItemsForCurrentFrame(ImGuiWindow* window)
+void ImGui::SetWindowHiddenAndSkipItemsForCurrentFrame(ImGuiWindow* window)
 {
     window->Hidden = window->SkipItems = true;
     window->HiddenFramesCanSkipItems = 1;
@@ -9679,6 +9682,7 @@ bool ImGui::ItemAdd(const ImRect& bb, ImGuiID id, const ImRect* nav_bb_arg, ImGu
         // If we crash on a NULL g.NavWindow we need to fix the bug elsewhere.
         if (!(g.LastItemData.InFlags & ImGuiItemFlags_NoNav))
         {
+            // FIMXE-NAV: investigate changing the window tests into a simple 'if (g.NavFocusScopeId == g.CurrentFocusScopeId)' test.
             window->DC.NavLayersActiveMaskNext |= (1 << window->DC.NavLayerCurrent);
             if (g.NavId == id || g.NavAnyRequest)
                 if (g.NavWindow->RootWindowForNav == window->RootWindowForNav)
@@ -9868,10 +9872,10 @@ void ImGui::PushMultiItemsWidths(int components, float w_full)
     for (int i = components - 1; i > 0; i--)
     {
         float next_split = IM_TRUNC(w_items * i / components);
-        window->DC.ItemWidthStack.push_back(prev_split - next_split);
+        window->DC.ItemWidthStack.push_back(ImMax(prev_split - next_split, 1.0f));
         prev_split = next_split;
     }
-    window->DC.ItemWidth = prev_split;
+    window->DC.ItemWidth = ImMax(prev_split, 1.0f);
     g.NextItemData.Flags &= ~ImGuiNextItemDataFlags_HasWidth;
 }
 
@@ -10373,7 +10377,7 @@ bool ImGui::BeginTooltipEx(ImGuiTooltipFlags tooltip_flags, ImGuiWindowFlags ext
             if (window->Active)
             {
                 // Hide previous tooltip from being displayed. We can't easily "reset" the content of a window so we create a new one.
-                SetWindowHiddendAndSkipItemsForCurrentFrame(window);
+                SetWindowHiddenAndSkipItemsForCurrentFrame(window);
                 ImFormatString(window_name, IM_ARRAYSIZE(window_name), "##Tooltip_%02d", ++g.TooltipOverrideCount);
             }
     ImGuiWindowFlags flags = ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
@@ -11310,6 +11314,8 @@ void ImGui::NavProcessItemForTabbingRequest(ImGuiID id, ImGuiItemFlags item_flag
     if ((move_flags & ImGuiNavMoveFlags_FocusApi) == 0)
         if (g.NavLayer != g.CurrentWindow->DC.NavLayerCurrent)
             return;
+    if (g.NavFocusScopeId != g.CurrentFocusScopeId)
+        return;
 
     // - Can always land on an item when using API call.
     // - Tabbing with _NavEnableKeyboard (space/enter/arrows): goes through every item.
@@ -12542,7 +12548,7 @@ bool ImGui::BeginTooltipHidden()
 {
     ImGuiContext& g = *GImGui;
     bool ret = Begin("##Tooltip_Hidden", NULL, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
-    SetWindowHiddendAndSkipItemsForCurrentFrame(g.CurrentWindow);
+    SetWindowHiddenAndSkipItemsForCurrentFrame(g.CurrentWindow);
     return ret;
 }
 
