@@ -35,6 +35,17 @@ HOW TO UPDATE?
   and API updates have been a little more frequent lately. They are documented below and in imgui.cpp and should not affect all users.
 - Please report any issue!
 
+-----------------------------------------------------------------------
+ VERSION 1.90.2 WIP (In Progress)
+-----------------------------------------------------------------------
+
+Breaking changes:
+
+Other changes:
+
+- Backends: Vulkan: Fixed vkMapMemory() calls unnecessarily using full buffer size. (#3957)
+- Backends: Vulkan: Fixed handling of ImGui_ImplVulkan_InitInfo::MinAllocationSize field. (#7189, #4238)
+
 
 -----------------------------------------------------------------------
  VERSION 1.90.1 (Released 2024-01-10)
@@ -90,6 +101,9 @@ Other changes:
 - Color Editors:
   - ColorEdit: Layout tweaks for very small sizes. (#7120, #7121)
   - ColorPicker: Fixed saturation/value cursor radius not scaling properly.
+- Tabs: Added ImGuiTabItemFlags_NoAssumedClosure to enable app to react on closure attempt,
+  without having to draw an unsaved document marker (ImGuiTabItemFlags_UnsavedDocument sets
+  _NoAssumedClosure automatically). (#7084)
 - Debug Tools:
   - Added io.ConfigDebugIsDebuggerPresent option. When enabled, this adds buttons in various
     locations of Metrics/Debugger to manually request a debugger break:
@@ -3530,8 +3544,6 @@ Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v
 
 Breaking Changes:
 
-- Tabs: Added ImGuiTabItemFlags_NoAssumedClosure to enable app to react on closure attempt, without having to draw
-  an unsaved document marker (ImGuiTabItemFlags_UnsavedDocument sets _NoAssumedClosure automatically). (#7084)
 - DragInt(): The default compile-time format string has been changed from "%.0f" to "%d", as we are not using integers internally
   any more. If you used DragInt() with custom format strings, make sure you change them to use %d or an integer-compatible format.
   To honor backward-compatibility, the DragInt() code will currently parse and modify format strings to replace %*f with %d,
