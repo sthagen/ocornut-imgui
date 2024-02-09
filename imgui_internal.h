@@ -1,4 +1,4 @@
-// dear imgui, v1.90.2 WIP
+// dear imgui, v1.90.2
 // (internal structures/api)
 
 // You may use this file to debug, understand or extend Dear ImGui features but we don't provide any guarantee of forward compatibility.
@@ -1865,6 +1865,8 @@ struct ImGuiMetricsConfig
     bool        ShowAtlasTintedWithTextColor = false;
     int         ShowWindowsRectsType = -1;
     int         ShowTablesRectsType = -1;
+    int         HighlightMonitorIdx = -1;
+    ImGuiID     HighlightViewportID = 0;
 };
 
 struct ImGuiStackLevelInfo
@@ -2028,8 +2030,6 @@ struct ImGuiContext
     ImVector<ImGuiPopupData>        BeginPopupStack;            // Which level of BeginPopup() we are in (reset every frame)
     ImVector<ImGuiNavTreeNodeData>  NavTreeNodeStack;           // Stack for TreeNode() when a NavLeft requested is emitted.
 
-    int                     BeginMenuCount;
-
     // Viewports
     ImVector<ImGuiViewportP*> Viewports;                        // Active viewports (Size==1 in 'master' branch). Each viewports hold their copy of ImDrawData.
 
@@ -2154,6 +2154,8 @@ struct ImGuiContext
     ImGuiInputTextDeactivatedState InputTextDeactivatedState;
     ImFont                  InputTextPasswordFont;
     ImGuiID                 TempInputId;                        // Temporary text input when CTRL+clicking on a slider, etc.
+    int                     BeginMenuDepth;
+    int                     BeginComboDepth;
     ImGuiColorEditFlags     ColorEditOptions;                   // Store user options for color edit widgets
     ImGuiID                 ColorEditCurrentID;                 // Set temporarily while inside of the parent-most ColorEdit4/ColorPicker4 (because they call each others).
     ImGuiID                 ColorEditSavedID;                   // ID we are saving/restoring HS for
@@ -2307,7 +2309,6 @@ struct ImGuiContext
         CurrentFocusScopeId = 0;
         CurrentItemFlags = ImGuiItemFlags_None;
         DebugShowGroupRects = false;
-        BeginMenuCount = 0;
 
         NavWindow = NULL;
         NavId = NavFocusScopeId = NavActivateId = NavActivateDownId = NavActivatePressedId = 0;
@@ -2371,6 +2372,7 @@ struct ImGuiContext
         MouseStationaryTimer = 0.0f;
 
         TempInputId = 0;
+        BeginMenuDepth = BeginComboDepth = 0;
         ColorEditOptions = ImGuiColorEditFlags_DefaultOptions_;
         ColorEditCurrentID = ColorEditSavedID = 0;
         ColorEditSavedHue = ColorEditSavedSat = 0.0f;
