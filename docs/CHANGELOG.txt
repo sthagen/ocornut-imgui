@@ -36,6 +36,27 @@ HOW TO UPDATE?
 - Please report any issue!
 
 -----------------------------------------------------------------------
+ VERSION 1.90.3 WIP (In Progress)
+-----------------------------------------------------------------------
+
+Breaking changes:
+
+- Backends: Vulkan: Using dynamic rendering now require filling the PipelineRenderingCreateInfo
+  structure in ImGui_ImplVulkan_InitInfo, allowing to configure color/depth/stencil formats.
+  Removed ColorAttachmentFormat field previously provided for dynamic rendering.
+  (#7166, #6855, #5446, #5037) [@shawnhatori]
+
+Other changes:
+
+- Menus, Popups: fixed menus and popups with child window flag erroneously not displaying
+  a scrollbar when contents is over parent viewport size. (#7287, #7063) [@ZingBallyhoo]
+- Backends: SDLRenderer3: query newly added SDL_RenderViewportSet() to not restore
+  a wrong viewport if none was initially set.
+- Backends: DirectX9: Using RGBA format when allowed by the driver to avoid CPU side
+  conversion. (#6575) [@Demonese]
+
+
+-----------------------------------------------------------------------
  VERSION 1.90.2 (Released 2024-01-09)
 -----------------------------------------------------------------------
 
