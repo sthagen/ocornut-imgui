@@ -60,6 +60,8 @@ Other changes:
 - Windows: BeginChild(): Resizing logic for child windows evaluates whether per-axis clamping
   should be applied based on parent scrollbars, not child scrollbars. (#7440, #1710) [@cfillion]
   Adjust those resizing limits to match window padding rather than inner clipping rectangle.
+- Tables: Fixed auto-width columns when using synced-instances of same table, width of
+  one instance would bleed into next one instead of sharing their widths. (#7218)
 - Tables: Angled headers: fixed border hit box extending beyond when used within
   non-scrollable tables. (#7416) [@cfillion]
 - Tables: Angled headers: fixed borders not moving back up after TableAngleHeadersRow()
@@ -70,6 +72,7 @@ Other changes:
   frames would erroneously close the window. While it is technically a popup issue
   it would generally manifest when fast moving the mouse bottom to top in a sub-menu.
   (#7325, #7287, #7063)
+- ProgressBar: Fixed passing fraction==NaN from leading to a crash. (#7451)
 - Style: Added ImGuiStyleVar_TabBorderSize, ImGuiStyleVar_TableAngledHeadersAngle for
   consistency. (#7411) [@cfillion]
 - DrawList: Added AddConcavePolyFilled(), PathFillConcave() concave filling. (#760) [@thedmd]
