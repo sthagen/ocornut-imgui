@@ -8604,7 +8604,7 @@ ImGuiKeyRoutingData* ImGui::GetShortcutRoutingData(ImGuiKeyChord key_chord)
 }
 
 // Current score encoding (lower is highest priority):
-//  -   0: ImGuiInputFlags_RouteGlobalHighest
+//  -   0: ImGuiInputFlags_RouteGlobalOverActive
 //  -   1: ImGuiInputFlags_ActiveItem or ImGuiInputFlags_RouteFocused (if item active)
 //  -   2: ImGuiInputFlags_RouteGlobalOverFocused
 //  -  3+: ImGuiInputFlags_RouteFocused (if window in focus-stack)
@@ -8633,21 +8633,23 @@ static int CalcRoutingScore(ImGuiID focus_scope_id, ImGuiID owner_id, ImGuiInput
         for (int index_in_focus_path = 0; index_in_focus_path < g.NavFocusRoute.Size; index_in_focus_path++)
             if (g.NavFocusRoute.Data[index_in_focus_path].ID == focus_scope_id)
                 return 3 + index_in_focus_path;
-
         return 255;
     }
-    if (flags & ImGuiInputFlags_RouteActiveItem)
+    else if (flags & ImGuiInputFlags_RouteActive)
     {
         if (owner_id != 0 && g.ActiveId == owner_id)
             return 1;
         return 255;
     }
-    if (flags & ImGuiInputFlags_RouteGlobalOverFocused)
-        return 2;
-    if (flags & ImGuiInputFlags_RouteGlobal)
+    else if (flags & ImGuiInputFlags_RouteGlobal)
+    {
+        if (flags & ImGuiInputFlags_RouteOverActive)
+            return 0;
+        if (flags & ImGuiInputFlags_RouteOverFocused)
+            return 2;
         return 254;
-
-    // ImGuiInputFlags_RouteGlobalHighest is default, so calls without flags are not conditional
+    }
+    IM_ASSERT(0);
     return 0;
 }
 
@@ -8677,8 +8679,13 @@ static bool IsKeyChordPotentiallyCharInput(ImGuiKeyChord key_chord)
 bool ImGui::SetShortcutRouting(ImGuiKeyChord key_chord, ImGuiInputFlags flags, ImGuiID owner_id)
 {
     ImGuiContext& g = *GImGui;
-    IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiInputFlags_RouteTypeMask_)); // Check that only 1 routing flag is used
+    if ((flags & ImGuiInputFlags_RouteTypeMask_) == 0)
+        flags |= ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverFocused | ImGuiInputFlags_RouteOverActive; // IMPORTANT: This is the default for SetShortcutRouting() but NOT Shortcut()
+    else
+        IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiInputFlags_RouteTypeMask_)); // Check that only 1 routing flag is used
     IM_ASSERT(owner_id != ImGuiKeyOwner_Any && owner_id != ImGuiKeyOwner_NoOwner);
+    if (flags & (ImGuiInputFlags_RouteOverFocused | ImGuiInputFlags_RouteOverActive | ImGuiInputFlags_RouteUnlessBgFocused))
+        IM_ASSERT(flags & ImGuiInputFlags_RouteGlobal);
 
     // Add ImGuiMod_XXXX when a corresponding ImGuiKey_LeftXXX/ImGuiKey_RightXXX is specified.
     key_chord = FixupKeyChord(key_chord);
@@ -8701,22 +8708,22 @@ bool ImGui::SetShortcutRouting(ImGuiKeyChord key_chord, ImGuiInputFlags flags, I
     // Specific culling when there's an active item.
     if (g.ActiveId != 0 && g.ActiveId != owner_id)
     {
+        if (flags & ImGuiInputFlags_RouteActive)
+            return false;
+
         // Cull shortcuts with no modifiers when it could generate a character.
         // e.g. Shortcut(ImGuiKey_G) also generates 'g' character, should not trigger when InputText() is active.
         // but  Shortcut(Ctrl+G) should generally trigger when InputText() is active.
         // TL;DR: lettered shortcut with no mods or with only Alt mod will not trigger while an item reading text input is active.
         // (We cannot filter based on io.InputQueueCharacters[] contents because of trickling and key<>chars submission order are undefined)
-        if ((flags & ImGuiInputFlags_RouteFocused) && g.IO.WantTextInput && IsKeyChordPotentiallyCharInput(key_chord))
+        if (g.IO.WantTextInput && IsKeyChordPotentiallyCharInput(key_chord))
         {
             IMGUI_DEBUG_LOG_INPUTROUTING("SetShortcutRouting(%s, flags=%04X, owner_id=0x%08X) -> filtered as potential char input\n", GetKeyChordName(key_chord), flags, owner_id);
             return false;
         }
 
-        if (flags & ImGuiInputFlags_RouteActiveItem)
-            return false;
-
         // ActiveIdUsingAllKeyboardKeys trumps all for ActiveId
-        if ((flags & ImGuiInputFlags_RouteGlobalHighest) == 0 && g.ActiveIdUsingAllKeyboardKeys)
+        if ((flags & ImGuiInputFlags_RouteOverActive) == 0 && g.ActiveIdUsingAllKeyboardKeys)
         {
             ImGuiKey key = (ImGuiKey)(key_chord & ~ImGuiMod_Mask_);
             if (key == ImGuiKey_None)
@@ -12870,7 +12877,7 @@ static void ImGui::NavUpdateWindowing()
             g.NavWindowingToggleLayer = start_windowing_with_gamepad ? true : false; // Gamepad starts toggling layer
             g.NavInputSource = start_windowing_with_keyboard ? ImGuiInputSource_Keyboard : ImGuiInputSource_Gamepad;
 
-            // Manually register ownership of our mods. Using ImGuiInputFlags_RouteGlobalHighest in the Shortcut() calls instead would probably be correct but may have more side-effects.
+            // Manually register ownership of our mods. Using a global route in the Shortcut() calls instead would probably be correct but may have more side-effects.
             if (keyboard_next_window || keyboard_prev_window)
                 SetKeyOwnersForKeyChord((g.ConfigNavWindowingKeyNext | g.ConfigNavWindowingKeyPrev) & ImGuiMod_Mask_, owner_id);
         }
@@ -15906,7 +15913,7 @@ void ImGui::ShowIDStackToolWindow(bool* p_open)
     Checkbox("Ctrl+C: copy path to clipboard", &tool->CopyToClipboardOnCtrlC);
     SameLine();
     TextColored((time_since_copy >= 0.0f && time_since_copy < 0.75f && ImFmod(time_since_copy, 0.25f) < 0.25f * 0.5f) ? ImVec4(1.f, 1.f, 0.3f, 1.f) : ImVec4(), "*COPIED*");
-    if (tool->CopyToClipboardOnCtrlC && Shortcut(ImGuiMod_Ctrl | ImGuiKey_C, ImGuiInputFlags_RouteGlobalOverFocused))
+    if (tool->CopyToClipboardOnCtrlC && Shortcut(ImGuiMod_Ctrl | ImGuiKey_C, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverFocused))
     {
         tool->CopyToClipboardLastTime = (float)g.Time;
         char* p = g.TempBuffer.Data;
