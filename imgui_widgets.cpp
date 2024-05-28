@@ -1,4 +1,4 @@
-// dear imgui, v1.90.7
+// dear imgui, v1.90.8 WIP
 // (widgets code)
 
 /*
@@ -8285,7 +8285,7 @@ ImGuiTabItem* ImGui::TabBarFindTabByOrder(ImGuiTabBar* tab_bar, int order)
 
 ImGuiTabItem* ImGui::TabBarGetCurrentTab(ImGuiTabBar* tab_bar)
 {
-    if (tab_bar->LastTabItemIdx <= 0 || tab_bar->LastTabItemIdx >= tab_bar->Tabs.Size)
+    if (tab_bar->LastTabItemIdx < 0 || tab_bar->LastTabItemIdx >= tab_bar->Tabs.Size)
         return NULL;
     return &tab_bar->Tabs[tab_bar->LastTabItemIdx];
 }
