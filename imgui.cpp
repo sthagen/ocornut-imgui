@@ -13096,6 +13096,8 @@ bool ImGui::IsDragDropActive()
 void ImGui::ClearDragDrop()
 {
     ImGuiContext& g = *GImGui;
+    if (g.DragDropActive)
+        IMGUI_DEBUG_LOG_ACTIVEID("[dragdrop] ClearDragDrop()\n");
     g.DragDropActive = false;
     g.DragDropPayload.Clear();
     g.DragDropAcceptFlags = ImGuiDragDropFlags_None;
@@ -13134,7 +13136,7 @@ bool ImGui::BeginDragDropSource(ImGuiDragDropFlags flags)
     bool source_drag_active = false;
     ImGuiID source_id = 0;
     ImGuiID source_parent_id = 0;
-    if (!(flags & ImGuiDragDropFlags_SourceExtern))
+    if ((flags & ImGuiDragDropFlags_SourceExtern) == 0)
     {
         source_id = g.LastItemData.ID;
         if (source_id != 0)
@@ -13196,43 +13198,44 @@ bool ImGui::BeginDragDropSource(ImGuiDragDropFlags flags)
     }
 
     IM_ASSERT(g.DragDropWithinTarget == false); // Can't nest BeginDragDropSource() and BeginDragDropTarget()
-    if (source_drag_active)
+    if (!source_drag_active)
+        return false;
+
+    // Activate drag and drop
+    if (!g.DragDropActive)
     {
-        if (!g.DragDropActive)
-        {
-            IM_ASSERT(source_id != 0);
-            ClearDragDrop();
-            ImGuiPayload& payload = g.DragDropPayload;
-            payload.SourceId = source_id;
-            payload.SourceParentId = source_parent_id;
-            g.DragDropActive = true;
-            g.DragDropSourceFlags = flags;
-            g.DragDropMouseButton = mouse_button;
-            if (payload.SourceId == g.ActiveId)
-                g.ActiveIdNoClearOnFocusLoss = true;
-        }
-        g.DragDropSourceFrameCount = g.FrameCount;
-        g.DragDropWithinSource = true;
-
-        if (!(flags & ImGuiDragDropFlags_SourceNoPreviewTooltip))
-        {
-            // Target can request the Source to not display its tooltip (we use a dedicated flag to make this request explicit)
-            // We unfortunately can't just modify the source flags and skip the call to BeginTooltip, as caller may be emitting contents.
-            bool ret;
-            if (g.DragDropAcceptIdPrev && (g.DragDropAcceptFlags & ImGuiDragDropFlags_AcceptNoPreviewTooltip))
-                ret = BeginTooltipHidden();
-            else
-                ret = BeginTooltip();
-            IM_ASSERT(ret); // FIXME-NEWBEGIN: If this ever becomes false, we need to Begin("##Hidden", NULL, ImGuiWindowFlags_NoSavedSettings) + SetWindowHiddendAndSkipItemsForCurrentFrame().
-            IM_UNUSED(ret);
-        }
-
-        if (!(flags & ImGuiDragDropFlags_SourceNoDisableHover) && !(flags & ImGuiDragDropFlags_SourceExtern))
-            g.LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
-
-        return true;
+        IM_ASSERT(source_id != 0);
+        ClearDragDrop();
+        IMGUI_DEBUG_LOG_ACTIVEID("[dragdrop] BeginDragDropSource() DragDropActive = true, source_id = %08X\n", source_id);
+        ImGuiPayload& payload = g.DragDropPayload;
+        payload.SourceId = source_id;
+        payload.SourceParentId = source_parent_id;
+        g.DragDropActive = true;
+        g.DragDropSourceFlags = flags;
+        g.DragDropMouseButton = mouse_button;
+        if (payload.SourceId == g.ActiveId)
+            g.ActiveIdNoClearOnFocusLoss = true;
     }
-    return false;
+    g.DragDropSourceFrameCount = g.FrameCount;
+    g.DragDropWithinSource = true;
+
+    if (!(flags & ImGuiDragDropFlags_SourceNoPreviewTooltip))
+    {
+        // Target can request the Source to not display its tooltip (we use a dedicated flag to make this request explicit)
+        // We unfortunately can't just modify the source flags and skip the call to BeginTooltip, as caller may be emitting contents.
+        bool ret;
+        if (g.DragDropAcceptIdPrev && (g.DragDropAcceptFlags & ImGuiDragDropFlags_AcceptNoPreviewTooltip))
+            ret = BeginTooltipHidden();
+        else
+            ret = BeginTooltip();
+        IM_ASSERT(ret); // FIXME-NEWBEGIN: If this ever becomes false, we need to Begin("##Hidden", NULL, ImGuiWindowFlags_NoSavedSettings) + SetWindowHiddendAndSkipItemsForCurrentFrame().
+        IM_UNUSED(ret);
+    }
+
+    if (!(flags & ImGuiDragDropFlags_SourceNoDisableHover) && !(flags & ImGuiDragDropFlags_SourceExtern))
+        g.LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+
+    return true;
 }
 
 void ImGui::EndDragDropSource()
@@ -15568,8 +15571,11 @@ void ImGui::DebugLogV(const char* fmt, va_list args)
     if (g.DebugLogFlags & ImGuiDebugLogFlags_OutputToTTY)
         IMGUI_DEBUG_PRINTF("%s", g.DebugLogBuf.begin() + old_size);
 #ifdef IMGUI_ENABLE_TEST_ENGINE
+    // IMGUI_TEST_ENGINE_LOG() adds a trailing \n automatically
+    const int new_size = g.DebugLogBuf.size();
+    const bool trailing_carriage_return = (g.DebugLogBuf[new_size - 1] == '\n');
     if (g.DebugLogFlags & ImGuiDebugLogFlags_OutputToTestEngine)
-        IMGUI_TEST_ENGINE_LOG("%s", g.DebugLogBuf.begin() + old_size);
+        IMGUI_TEST_ENGINE_LOG("%.*s", new_size - old_size - (trailing_carriage_return ? 1 : 0), g.DebugLogBuf.begin() + old_size);
 #endif
 }
 
@@ -15637,31 +15643,35 @@ void ImGui::ShowDebugLogWindow(bool* p_open)
     clipper.Begin(g.DebugLogIndex.size());
     while (clipper.Step())
         for (int line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd; line_no++)
-        {
-            const char* line_begin = g.DebugLogIndex.get_line_begin(g.DebugLogBuf.c_str(), line_no);
-            const char* line_end = g.DebugLogIndex.get_line_end(g.DebugLogBuf.c_str(), line_no);
-            TextUnformatted(line_begin, line_end); // Display line
-            ImRect text_rect = g.LastItemData.Rect;
-            if (IsItemHovered())
-                for (const char* p = line_begin; p <= line_end - 10; p++) // Search for 0x???????? identifiers
-                {
-                    ImGuiID id = 0;
-                    if (p[0] != '0' || (p[1] != 'x' && p[1] != 'X') || sscanf(p + 2, "%X", &id) != 1)
-                        continue;
-                    ImVec2 p0 = CalcTextSize(line_begin, p);
-                    ImVec2 p1 = CalcTextSize(p, p + 10);
-                    g.LastItemData.Rect = ImRect(text_rect.Min + ImVec2(p0.x, 0.0f), text_rect.Min + ImVec2(p0.x + p1.x, p1.y));
-                    if (IsMouseHoveringRect(g.LastItemData.Rect.Min, g.LastItemData.Rect.Max, true))
-                        DebugLocateItemOnHover(id);
-                    p += 10;
-                }
-        }
+            DebugTextUnformattedWithLocateItem(g.DebugLogIndex.get_line_begin(g.DebugLogBuf.c_str(), line_no), g.DebugLogIndex.get_line_end(g.DebugLogBuf.c_str(), line_no));
     g.DebugLogFlags = backup_log_flags;
     if (GetScrollY() >= GetScrollMaxY())
         SetScrollHereY(1.0f);
     EndChild();
 
     End();
+}
+
+// Display line, search for 0xXXXXXXXX identifiers and call DebugLocateItemOnHover() when hovered.
+void ImGui::DebugTextUnformattedWithLocateItem(const char* line_begin, const char* line_end)
+{
+    TextUnformatted(line_begin, line_end);
+    if (!IsItemHovered())
+        return;
+    ImGuiContext& g = *GImGui;
+    ImRect text_rect = g.LastItemData.Rect;
+    for (const char* p = line_begin; p <= line_end - 10; p++)
+    {
+        ImGuiID id = 0;
+        if (p[0] != '0' || (p[1] != 'x' && p[1] != 'X') || sscanf(p + 2, "%X", &id) != 1)
+            continue;
+        ImVec2 p0 = CalcTextSize(line_begin, p);
+        ImVec2 p1 = CalcTextSize(p, p + 10);
+        g.LastItemData.Rect = ImRect(text_rect.Min + ImVec2(p0.x, 0.0f), text_rect.Min + ImVec2(p0.x + p1.x, p1.y));
+        if (IsMouseHoveringRect(g.LastItemData.Rect.Min, g.LastItemData.Rect.Max, true))
+            DebugLocateItemOnHover(id);
+        p += 10;
+    }
 }
 
 //-----------------------------------------------------------------------------
