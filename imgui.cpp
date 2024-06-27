@@ -2542,20 +2542,18 @@ ImGuiStoragePair* ImLowerBound(ImGuiStoragePair* in_begin, ImGuiStoragePair* in_
     return in_p;
 }
 
+static int IMGUI_CDECL PairComparerByID(const void* lhs, const void* rhs)
+{
+    // We can't just do a subtraction because qsort uses signed integers and subtracting our ID doesn't play well with that.
+    ImGuiID lhs_v = ((const ImGuiStoragePair*)lhs)->key;
+    ImGuiID rhs_v = ((const ImGuiStoragePair*)rhs)->key;
+    return (lhs_v > rhs_v ? +1 : lhs_v < rhs_v ? -1 : 0);
+}
+
 // For quicker full rebuild of a storage (instead of an incremental one), you may add all your contents and then sort once.
 void ImGuiStorage::BuildSortByKey()
 {
-    struct StaticFunc
-    {
-        static int IMGUI_CDECL PairComparerByID(const void* lhs, const void* rhs)
-        {
-            // We can't just do a subtraction because qsort uses signed integers and subtracting our ID doesn't play well with that.
-            if (((const ImGuiStoragePair*)lhs)->key > ((const ImGuiStoragePair*)rhs)->key) return +1;
-            if (((const ImGuiStoragePair*)lhs)->key < ((const ImGuiStoragePair*)rhs)->key) return -1;
-            return 0;
-        }
-    };
-    ImQsort(Data.Data, (size_t)Data.Size, sizeof(ImGuiStoragePair), StaticFunc::PairComparerByID);
+    ImQsort(Data.Data, (size_t)Data.Size, sizeof(ImGuiStoragePair), PairComparerByID);
 }
 
 int ImGuiStorage::GetInt(ImGuiID key, int default_val) const
@@ -4216,6 +4214,7 @@ bool ImGui::ItemHoverable(const ImRect& bb, ImGuiID id, ImGuiItemFlags item_flag
         }
 
         // Display shortcut (only works with mouse)
+        // (ImGuiItemStatusFlags_HasShortcut in LastItemData denotes we want a tooltip)
         if (id == g.LastItemData.ID && (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_HasShortcut))
             if (IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_DelayNormal))
                 SetTooltip("%s", GetKeyChordName(g.LastItemData.Shortcut));
@@ -9795,12 +9794,15 @@ void ImGui::SetNextItemShortcut(ImGuiKeyChord key_chord, ImGuiInputFlags flags)
     g.NextItemData.ShortcutFlags = flags;
 }
 
+// Called from within ItemAdd: at this point we can read from NextItemData and write to LastItemData
 void ImGui::ItemHandleShortcut(ImGuiID id)
 {
     ImGuiContext& g = *GImGui;
     ImGuiInputFlags flags = g.NextItemData.ShortcutFlags;
     IM_ASSERT((flags & ~ImGuiInputFlags_SupportedBySetNextItemShortcut) == 0); // Passing flags not supported by SetNextItemShortcut()!
 
+    if (g.LastItemData.InFlags & ImGuiItemFlags_Disabled)
+        return;
     if (flags & ImGuiInputFlags_Tooltip)
     {
         g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_HasShortcut;
@@ -9824,7 +9826,7 @@ bool ImGui::Shortcut(ImGuiKeyChord key_chord, ImGuiInputFlags flags)
 
 bool ImGui::Shortcut(ImGuiKeyChord key_chord, ImGuiInputFlags flags, ImGuiID owner_id)
 {
-    //ImGuiContext& g = *GImGui;
+    ImGuiContext& g = *GImGui;
     //IMGUI_DEBUG_LOG("Shortcut(%s, flags=%X, owner_id=0x%08X)\n", GetKeyChordName(key_chord, g.TempBuffer.Data, g.TempBuffer.Size), flags, owner_id);
 
     // When using (owner_id == 0/Any): SetShortcutRouting() will use CurrentFocusScopeId and filter with this, so IsKeyPressed() is fine with he 0/Any.
@@ -9835,6 +9837,9 @@ bool ImGui::Shortcut(ImGuiKeyChord key_chord, ImGuiInputFlags flags, ImGuiID own
     // Effectively makes Shortcut() always input-owner aware.
     if (owner_id == ImGuiKeyOwner_Any || owner_id == ImGuiKeyOwner_NoOwner)
         owner_id = GetRoutingIdFromOwnerId(owner_id);
+
+    if (g.CurrentItemFlags & ImGuiItemFlags_Disabled)
+        return false;
 
     // Submit route
     if (!SetShortcutRouting(key_chord, flags, owner_id))
