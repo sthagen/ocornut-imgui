@@ -15739,6 +15739,22 @@ void ImGui::ShowDebugLogWindow(bool* p_open)
     SameLine();
     if (SmallButton("Copy"))
         SetClipboardText(g.DebugLogBuf.c_str());
+    SameLine();
+    if (SmallButton("Configure Outputs.."))
+        OpenPopup("Outputs");
+    if (BeginPopup("Outputs"))
+    {
+        CheckboxFlags("OutputToTTY", &g.DebugLogFlags, ImGuiDebugLogFlags_OutputToTTY);
+#ifndef IMGUI_ENABLE_TEST_ENGINE
+        BeginDisabled();
+#endif
+        CheckboxFlags("OutputToTestEngine", &g.DebugLogFlags, ImGuiDebugLogFlags_OutputToTestEngine);
+#ifndef IMGUI_ENABLE_TEST_ENGINE
+        EndDisabled();
+#endif
+        EndPopup();
+    }
+
     BeginChild("##log", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Border, ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_AlwaysHorizontalScrollbar);
 
     const ImGuiDebugLogFlags backup_log_flags = g.DebugLogFlags;
@@ -16099,8 +16115,6 @@ void ImGui::DebugNodeWindowSettings(ImGuiWindowSettings*) {}
 void ImGui::DebugNodeWindowsList(ImVector<ImGuiWindow*>*, const char*) {}
 void ImGui::DebugNodeViewport(ImGuiViewportP*) {}
 
-void ImGui::DebugLog(const char*, ...) {}
-void ImGui::DebugLogV(const char*, va_list) {}
 void ImGui::ShowDebugLogWindow(bool*) {}
 void ImGui::ShowIDStackToolWindow(bool*) {}
 void ImGui::DebugStartItemPicker() {}
