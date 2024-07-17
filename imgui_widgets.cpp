@@ -835,17 +835,15 @@ bool ImGui::CloseButton(ImGuiID id, const ImVec2& pos)
         return pressed;
 
     // Render
-    // FIXME: Clarify this mess
-    ImU32 col = GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered);
-    ImVec2 center = bb.GetCenter();
+    ImU32 bg_col = GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered);
     if (hovered)
-        window->DrawList->AddCircleFilled(center, ImMax(2.0f, g.FontSize * 0.5f + 1.0f), col);
-
-    float cross_extent = g.FontSize * 0.5f * 0.7071f - 1.0f;
+        window->DrawList->AddRectFilled(bb.Min, bb.Max, bg_col);
+    RenderNavHighlight(bb, id, ImGuiNavHighlightFlags_Compact);
     ImU32 cross_col = GetColorU32(ImGuiCol_Text);
-    center -= ImVec2(0.5f, 0.5f);
-    window->DrawList->AddLine(center + ImVec2(+cross_extent, +cross_extent), center + ImVec2(-cross_extent, -cross_extent), cross_col, 1.0f);
-    window->DrawList->AddLine(center + ImVec2(+cross_extent, -cross_extent), center + ImVec2(-cross_extent, +cross_extent), cross_col, 1.0f);
+    ImVec2 cross_center = bb.GetCenter() - ImVec2(0.5f, 0.5f);
+    float cross_extent = g.FontSize * 0.5f * 0.7071f - 1.0f;
+    window->DrawList->AddLine(cross_center + ImVec2(+cross_extent, +cross_extent), cross_center + ImVec2(-cross_extent, -cross_extent), cross_col, 1.0f);
+    window->DrawList->AddLine(cross_center + ImVec2(+cross_extent, -cross_extent), cross_center + ImVec2(-cross_extent, +cross_extent), cross_col, 1.0f);
 
     return pressed;
 }
@@ -866,7 +864,8 @@ bool ImGui::CollapseButton(ImGuiID id, const ImVec2& pos)
     ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
     ImU32 text_col = GetColorU32(ImGuiCol_Text);
     if (hovered || held)
-        window->DrawList->AddCircleFilled(bb.GetCenter() + ImVec2(0.0f, -0.5f), g.FontSize * 0.5f + 1.0f, bg_col);
+        window->DrawList->AddRectFilled(bb.Min, bb.Max, bg_col);
+    RenderNavHighlight(bb, id, ImGuiNavHighlightFlags_Compact);
     RenderArrow(window->DrawList, bb.Min, text_col, window->Collapsed ? ImGuiDir_Right : ImGuiDir_Down, 1.0f);
 
     // Switch to moving the window after mouse is moved beyond the initial drag threshold
@@ -4284,7 +4283,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         PushStyleVar(ImGuiStyleVar_ChildRounding, style.FrameRounding);
         PushStyleVar(ImGuiStyleVar_ChildBorderSize, style.FrameBorderSize);
         PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0)); // Ensure no clip rect so mouse hover can reach FramePadding edges
-        bool child_visible = BeginChildEx(label, id, frame_bb.GetSize(), true, ImGuiWindowFlags_NoMove);
+        bool child_visible = BeginChildEx(label, id, frame_bb.GetSize(), ImGuiChildFlags_Border, ImGuiWindowFlags_NoMove);
         g.NavActivateId = backup_activate_id;
         PopStyleVar(3);
         PopStyleColor();
@@ -6196,7 +6195,8 @@ bool ImGui::TreeNode(const char* label)
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return false;
-    return TreeNodeBehavior(window->GetID(label), 0, label, NULL);
+    ImGuiID id = window->GetID(label);
+    return TreeNodeBehavior(id, id, ImGuiTreeNodeFlags_None, label, NULL);
 }
 
 bool ImGui::TreeNodeV(const char* str_id, const char* fmt, va_list args)
@@ -6214,8 +6214,8 @@ bool ImGui::TreeNodeEx(const char* label, ImGuiTreeNodeFlags flags)
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return false;
-
-    return TreeNodeBehavior(window->GetID(label), flags, label, NULL);
+    ImGuiID id = window->GetID(label);
+    return TreeNodeBehavior(id, id, flags, label, NULL);
 }
 
 bool ImGui::TreeNodeEx(const char* str_id, ImGuiTreeNodeFlags flags, const char* fmt, ...)
@@ -6242,9 +6242,10 @@ bool ImGui::TreeNodeExV(const char* str_id, ImGuiTreeNodeFlags flags, const char
     if (window->SkipItems)
         return false;
 
+    ImGuiID id = window->GetID(str_id);
     const char* label, *label_end;
     ImFormatStringToTempBufferV(&label, &label_end, fmt, args);
-    return TreeNodeBehavior(window->GetID(str_id), flags, label, label_end);
+    return TreeNodeBehavior(id, id, flags, label, label_end);
 }
 
 bool ImGui::TreeNodeExV(const void* ptr_id, ImGuiTreeNodeFlags flags, const char* fmt, va_list args)
@@ -6253,26 +6254,27 @@ bool ImGui::TreeNodeExV(const void* ptr_id, ImGuiTreeNodeFlags flags, const char
     if (window->SkipItems)
         return false;
 
+    ImGuiID id = window->GetID(ptr_id);
     const char* label, *label_end;
     ImFormatStringToTempBufferV(&label, &label_end, fmt, args);
-    return TreeNodeBehavior(window->GetID(ptr_id), flags, label, label_end);
+    return TreeNodeBehavior(id, id, flags, label, label_end);
 }
 
-bool ImGui::TreeNodeIsOpen(ImGuiID id)
+bool ImGui::TreeNodeGetOpen(ImGuiID storage_id)
 {
     ImGuiContext& g = *GImGui;
     ImGuiStorage* storage = g.CurrentWindow->DC.StateStorage;
-    return storage->GetInt(id, 0) != 0;
+    return storage->GetInt(storage_id, 0) != 0;
 }
 
-void ImGui::TreeNodeSetOpen(ImGuiID id, bool open)
+void ImGui::TreeNodeSetOpen(ImGuiID storage_id, bool open)
 {
     ImGuiContext& g = *GImGui;
     ImGuiStorage* storage = g.CurrentWindow->DC.StateStorage;
-    storage->SetInt(id, open ? 1 : 0);
+    storage->SetInt(storage_id, open ? 1 : 0);
 }
 
-bool ImGui::TreeNodeUpdateNextOpen(ImGuiID id, ImGuiTreeNodeFlags flags)
+bool ImGui::TreeNodeUpdateNextOpen(ImGuiID storage_id, ImGuiTreeNodeFlags flags)
 {
     if (flags & ImGuiTreeNodeFlags_Leaf)
         return true;
@@ -6288,16 +6290,16 @@ bool ImGui::TreeNodeUpdateNextOpen(ImGuiID id, ImGuiTreeNodeFlags flags)
         if (g.NextItemData.OpenCond & ImGuiCond_Always)
         {
             is_open = g.NextItemData.OpenVal;
-            TreeNodeSetOpen(id, is_open);
+            TreeNodeSetOpen(storage_id, is_open);
         }
         else
         {
             // We treat ImGuiCond_Once and ImGuiCond_FirstUseEver the same because tree node state are not saved persistently.
-            const int stored_value = storage->GetInt(id, -1);
+            const int stored_value = storage->GetInt(storage_id, -1);
             if (stored_value == -1)
             {
                 is_open = g.NextItemData.OpenVal;
-                TreeNodeSetOpen(id, is_open);
+                TreeNodeSetOpen(storage_id, is_open);
             }
             else
             {
@@ -6307,7 +6309,7 @@ bool ImGui::TreeNodeUpdateNextOpen(ImGuiID id, ImGuiTreeNodeFlags flags)
     }
     else
     {
-        is_open = storage->GetInt(id, (flags & ImGuiTreeNodeFlags_DefaultOpen) ? 1 : 0) != 0;
+        is_open = storage->GetInt(storage_id, (flags & ImGuiTreeNodeFlags_DefaultOpen) ? 1 : 0) != 0;
     }
 
     // When logging is enabled, we automatically expand tree nodes (but *NOT* collapsing headers.. seems like sensible behavior).
@@ -6334,7 +6336,8 @@ static void TreeNodeStoreStackData(ImGuiTreeNodeFlags flags)
     window->DC.TreeHasStackDataDepthMask |= (1 << window->DC.TreeDepth);
 }
 
-bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
+// When using public API, currently 'id == storage_id' is always true, but we separate the values to facilitate advanced user code doing storage queries outside of UI loop.
+bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiID storage_id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
 {
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
@@ -6387,7 +6390,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
     }
 
     // Compute open and multi-select states before ItemAdd() as it clear NextItem data.
-    bool is_open = TreeNodeUpdateNextOpen(id, flags);
+    bool is_open = TreeNodeUpdateNextOpen(storage_id, flags);
     bool item_add = ItemAdd(interact_bb, id);
     g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_HasDisplayRect;
     g.LastItemData.DisplayRect = frame_bb;
@@ -6499,7 +6502,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
         if (toggled)
         {
             is_open = !is_open;
-            window->DC.StateStorage->SetInt(id, is_open);
+            window->DC.StateStorage->SetInt(storage_id, is_open);
             g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_ToggledOpen;
         }
     }
@@ -6640,8 +6643,8 @@ bool ImGui::CollapsingHeader(const char* label, ImGuiTreeNodeFlags flags)
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return false;
-
-    return TreeNodeBehavior(window->GetID(label), flags | ImGuiTreeNodeFlags_CollapsingHeader, label);
+    ImGuiID id = window->GetID(label);
+    return TreeNodeBehavior(id, id, flags | ImGuiTreeNodeFlags_CollapsingHeader, label);
 }
 
 // p_visible == NULL                        : regular collapsing header
@@ -6661,7 +6664,7 @@ bool ImGui::CollapsingHeader(const char* label, bool* p_visible, ImGuiTreeNodeFl
     flags |= ImGuiTreeNodeFlags_CollapsingHeader;
     if (p_visible)
         flags |= ImGuiTreeNodeFlags_AllowOverlap | (ImGuiTreeNodeFlags)ImGuiTreeNodeFlags_ClipLabelForTrailingButton;
-    bool is_open = TreeNodeBehavior(id, flags, label);
+    bool is_open = TreeNodeBehavior(id, id, flags, label);
     if (p_visible != NULL)
     {
         // Create a small overlapping close button

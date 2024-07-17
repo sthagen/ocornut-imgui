@@ -1096,7 +1096,7 @@ CODE
 #endif
 
 // Debug options
-#define IMGUI_DEBUG_NAV_SCORING     0   // Display navigation scoring preview when hovering items. Display last moving direction matches when holding CTRL
+#define IMGUI_DEBUG_NAV_SCORING     0   // Display navigation scoring preview when hovering items. Hold CTRL to display for all candidates. CTRL+Arrow to change last direction.
 #define IMGUI_DEBUG_NAV_RECTS       0   // Display the reference navigation rectangle for each window
 
 // When using CTRL+TAB (or Gamepad Square+L/R) we delay the visual a little in order to reduce visual noise doing a fast switch.
@@ -2911,15 +2911,6 @@ static void ImGuiListClipper_SeekCursorAndSetupPrevLine(float pos_y, float line_
     }
 }
 
-static void ImGuiListClipper_SeekCursorForItem(ImGuiListClipper* clipper, int item_n)
-{
-    // StartPosY starts from ItemsFrozen hence the subtraction
-    // Perform the add and multiply with double to allow seeking through larger ranges
-    ImGuiListClipperData* data = (ImGuiListClipperData*)clipper->TempData;
-    float pos_y = (float)((double)clipper->StartPosY + data->LossynessOffset + (double)(item_n - data->ItemsFrozen) * clipper->ItemsHeight);
-    ImGuiListClipper_SeekCursorAndSetupPrevLine(pos_y, clipper->ItemsHeight);
-}
-
 ImGuiListClipper::ImGuiListClipper()
 {
     memset(this, 0, sizeof(*this));
@@ -2956,6 +2947,7 @@ void ImGuiListClipper::Begin(int items_count, float items_height)
     data->Reset(this);
     data->LossynessOffset = window->DC.CursorStartPosLossyness.y;
     TempData = data;
+    StartSeekOffsetY = data->LossynessOffset;
 }
 
 void ImGuiListClipper::End()
@@ -2966,7 +2958,7 @@ void ImGuiListClipper::End()
         ImGuiContext& g = *Ctx;
         IMGUI_DEBUG_LOG_CLIPPER("Clipper: End() in '%s'\n", g.CurrentWindow->Name);
         if (ItemsCount >= 0 && ItemsCount < INT_MAX && DisplayStart >= 0)
-            ImGuiListClipper_SeekCursorForItem(this, ItemsCount);
+            SeekCursorForItem(ItemsCount);
 
         // Restore temporary buffer and fix back pointers which may be invalidated when nesting
         IM_ASSERT(data->ListClipper == this);
@@ -2988,6 +2980,17 @@ void ImGuiListClipper::IncludeItemsByIndex(int item_begin, int item_end)
     IM_ASSERT(item_begin <= item_end);
     if (item_begin < item_end)
         data->Ranges.push_back(ImGuiListClipperRange::FromIndices(item_begin, item_end));
+}
+
+// This is already called while stepping.
+// The ONLY reason you may want to call this is if you passed INT_MAX to ImGuiListClipper::Begin() because you couldn't step item count beforehand.
+void ImGuiListClipper::SeekCursorForItem(int item_n)
+{
+    // - Perform the add and multiply with double to allow seeking through larger ranges.
+    // - StartPosY starts from ItemsFrozen, by adding SeekOffsetY we generally cancel that out (SeekOffsetY == LossynessOffset - ItemsFrozen * ItemsHeight).
+    // - The reason we store SeekOffsetY instead of inferring it, is because we want to allow user to perform Seek after the last step, where ImGuiListClipperData is already done.
+    float pos_y = (float)((double)StartPosY + StartSeekOffsetY + (double)item_n * ItemsHeight);
+    ImGuiListClipper_SeekCursorAndSetupPrevLine(pos_y, ItemsHeight);
 }
 
 static bool ImGuiListClipper_StepInternal(ImGuiListClipper* clipper)
@@ -3053,6 +3056,9 @@ static bool ImGuiListClipper_StepInternal(ImGuiListClipper* clipper)
     const int already_submitted = clipper->DisplayEnd;
     if (calc_clipping)
     {
+        // Record seek offset, this is so ImGuiListClipper::Seek() can be called after ImGuiListClipperData is done
+        clipper->StartSeekOffsetY = (double)data->LossynessOffset - data->ItemsFrozen * (double)clipper->ItemsHeight;
+
         if (g.LogEnabled)
         {
             // If logging is active, do not perform any clipping
@@ -3100,7 +3106,7 @@ static bool ImGuiListClipper_StepInternal(ImGuiListClipper* clipper)
         clipper->DisplayStart = ImMax(data->Ranges[data->StepNo].Min, already_submitted);
         clipper->DisplayEnd = ImMin(data->Ranges[data->StepNo].Max, clipper->ItemsCount);
         if (clipper->DisplayStart > already_submitted) //-V1051
-            ImGuiListClipper_SeekCursorForItem(clipper, clipper->DisplayStart);
+            clipper->SeekCursorForItem(clipper->DisplayStart);
         data->StepNo++;
         if (clipper->DisplayStart == clipper->DisplayEnd && data->StepNo < data->Ranges.Size)
             continue;
@@ -3110,7 +3116,7 @@ static bool ImGuiListClipper_StepInternal(ImGuiListClipper* clipper)
     // After the last step: Let the clipper validate that we have reached the expected Y position (corresponding to element DisplayEnd),
     // Advance the cursor to the end of the list and then returns 'false' to end the loop.
     if (clipper->ItemsCount < INT_MAX)
-        ImGuiListClipper_SeekCursorForItem(clipper, clipper->ItemsCount);
+        clipper->SeekCursorForItem(clipper->ItemsCount);
 
     return false;
 }
@@ -11716,6 +11722,9 @@ static bool ImGui::NavScoreItem(ImGuiNavItemData* result)
     if (dbx != 0.0f || dby != 0.0f)
     {
         // For non-overlapping boxes, use distance between boxes
+        // FIXME-NAV: Quadrant may be incorrect because of (1) dbx bias and (2) curr.Max.y bias applied by NavBiasScoringRect() where typically curr.Max.y==curr.Min.y
+        // One typical case where this happens, with style.WindowMenuButtonPosition == ImGuiDir_Right, pressing Left to navigate from Close to Collapse tends to fail.
+        // Also see #6344. Calling ImGetDirQuadrantFromDelta() with unbiased values may be good but side-effects are plenty.
         dax = dbx;
         day = dby;
         dist_axial = dist_box;
