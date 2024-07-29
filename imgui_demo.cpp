@@ -1357,18 +1357,18 @@ static void ShowDemoWindowWidgets(DemoWindowData* demo_data)
         // (your selection data could be an index, a pointer to the object, an id for the object, a flag intrusively
         // stored in the object itself, etc.)
         const char* items[] = { "AAAA", "BBBB", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIII", "JJJJ", "KKKK", "LLLLLLL", "MMMM", "OOOOOOO" };
-        static int item_current_idx = 0; // Here we store our selection data as an index.
+        static int item_selected_idx = 0; // Here we store our selection data as an index.
 
         // Pass in the preview value visible before opening the combo (it could technically be different contents or not pulled from items[])
-        const char* combo_preview_value = items[item_current_idx];
+        const char* combo_preview_value = items[item_selected_idx];
 
         if (ImGui::BeginCombo("combo 1", combo_preview_value, flags))
         {
             for (int n = 0; n < IM_ARRAYSIZE(items); n++)
             {
-                const bool is_selected = (item_current_idx == n);
+                const bool is_selected = (item_selected_idx == n);
                 if (ImGui::Selectable(items[n], is_selected))
-                    item_current_idx = n;
+                    item_selected_idx = n;
 
                 // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
                 if (is_selected)
@@ -1410,14 +1410,22 @@ static void ShowDemoWindowWidgets(DemoWindowData* demo_data)
         // (your selection data could be an index, a pointer to the object, an id for the object, a flag intrusively
         // stored in the object itself, etc.)
         const char* items[] = { "AAAA", "BBBB", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIII", "JJJJ", "KKKK", "LLLLLLL", "MMMM", "OOOOOOO" };
-        static int item_current_idx = 0; // Here we store our selection data as an index.
+        static int item_selected_idx = 0; // Here we store our selected data as an index.
+
+        static bool item_highlight = false;
+        int item_highlighted_idx = -1; // Here we store our highlighted data as an index.
+        ImGui::Checkbox("Highlight hovered item in second listbox", &item_highlight);
+
         if (ImGui::BeginListBox("listbox 1"))
         {
             for (int n = 0; n < IM_ARRAYSIZE(items); n++)
             {
-                const bool is_selected = (item_current_idx == n);
+                const bool is_selected = (item_selected_idx == n);
                 if (ImGui::Selectable(items[n], is_selected))
-                    item_current_idx = n;
+                    item_selected_idx = n;
+
+                if (item_highlight && ImGui::IsItemHovered())
+                    item_highlighted_idx = n;
 
                 // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
                 if (is_selected)
@@ -1433,9 +1441,10 @@ static void ShowDemoWindowWidgets(DemoWindowData* demo_data)
         {
             for (int n = 0; n < IM_ARRAYSIZE(items); n++)
             {
-                const bool is_selected = (item_current_idx == n);
-                if (ImGui::Selectable(items[n], is_selected))
-                    item_current_idx = n;
+                bool is_selected = (item_selected_idx == n);
+                ImGuiSelectableFlags flags = (item_highlighted_idx == n) ? ImGuiSelectableFlags_Highlight : 0;
+                if (ImGui::Selectable(items[n], is_selected, flags))
+                    item_selected_idx = n;
 
                 // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
                 if (is_selected)
@@ -1482,8 +1491,8 @@ static void ShowDemoWindowWidgets(DemoWindowData* demo_data)
             ImGui::TreePop();
         }
 
-        IMGUI_DEMO_MARKER("Widgets/Selectables/In columns");
-        if (ImGui::TreeNode("In columns"))
+        IMGUI_DEMO_MARKER("Widgets/Selectables/In Tables");
+        if (ImGui::TreeNode("In Tables"))
         {
             static bool selected[10] = {};
 
@@ -3294,6 +3303,52 @@ static void ShowDemoWindowMultiSelect(DemoWindowData* demo_data)
             // Show
             dlb.Show();
 
+            ImGui::TreePop();
+        }
+
+        // Demonstrate using the clipper with BeginMultiSelect()/EndMultiSelect()
+        IMGUI_DEMO_MARKER("Widgets/Selection State/Multi-Select (in a table)");
+        if (ImGui::TreeNode("Multi-Select (in a table)"))
+        {
+            static ImGuiSelectionBasicStorage selection;
+
+            const int ITEMS_COUNT = 10000;
+            ImGui::Text("Selection: %d/%d", selection.Size, ITEMS_COUNT);
+            if (ImGui::BeginTable("##Basket", 2, ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter))
+            {
+                ImGui::TableSetupColumn("Object");
+                ImGui::TableSetupColumn("Action");
+                ImGui::TableSetupScrollFreeze(0, 1);
+                ImGui::TableHeadersRow();
+
+                ImGuiMultiSelectFlags flags = ImGuiMultiSelectFlags_ClearOnEscape | ImGuiMultiSelectFlags_BoxSelect1d;
+                ImGuiMultiSelectIO* ms_io = ImGui::BeginMultiSelect(flags, selection.Size, ITEMS_COUNT);
+                selection.ApplyRequests(ms_io);
+
+                ImGuiListClipper clipper;
+                clipper.Begin(ITEMS_COUNT);
+                if (ms_io->RangeSrcItem != -1)
+                    clipper.IncludeItemByIndex((int)ms_io->RangeSrcItem); // Ensure RangeSrc item is not clipped.
+                while (clipper.Step())
+                {
+                    for (int n = clipper.DisplayStart; n < clipper.DisplayEnd; n++)
+                    {
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        char label[64];
+                        sprintf(label, "Object %05d: %s", n, ExampleNames[n % IM_ARRAYSIZE(ExampleNames)]);
+                        bool item_is_selected = selection.Contains((ImGuiID)n);
+                        ImGui::SetNextItemSelectionUserData(n);
+                        ImGui::Selectable(label, item_is_selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap);
+                        ImGui::TableNextColumn();
+                        ImGui::SmallButton("hello");
+                    }
+                }
+
+                ms_io = ImGui::EndMultiSelect();
+                selection.ApplyRequests(ms_io);
+                ImGui::EndTable();
+            }
             ImGui::TreePop();
         }
 
