@@ -8407,7 +8407,7 @@ IM_MSVC_RUNTIME_CHECKS_RESTORE
 //-----------------------------------------------------------------------------
 // [SECTION] INPUTS
 //-----------------------------------------------------------------------------
-// - GetModForModKey() [Internal]
+// - GetModForLRModKey() [Internal]
 // - FixupKeyChord() [Internal]
 // - GetKeyData() [Internal]
 // - GetKeyIndex() [Internal]
@@ -8470,7 +8470,7 @@ IM_MSVC_RUNTIME_CHECKS_RESTORE
 // - Shortcut() [Internal]
 //-----------------------------------------------------------------------------
 
-static ImGuiKeyChord GetModForModKey(ImGuiKey key)
+static ImGuiKeyChord GetModForLRModKey(ImGuiKey key)
 {
     if (key == ImGuiKey_LeftCtrl || key == ImGuiKey_RightCtrl)
         return ImGuiMod_Ctrl;
@@ -8487,8 +8487,8 @@ ImGuiKeyChord ImGui::FixupKeyChord(ImGuiKeyChord key_chord)
 {
     // Add ImGuiMod_XXXX when a corresponding ImGuiKey_LeftXXX/ImGuiKey_RightXXX is specified.
     ImGuiKey key = (ImGuiKey)(key_chord & ~ImGuiMod_Mask_);
-    if (IsModKey(key))
-        key_chord |= GetModForModKey(key);
+    if (IsLRModKey(key))
+        key_chord |= GetModForLRModKey(key);
     return key_chord;
 }
 
@@ -8579,8 +8579,8 @@ const char* ImGui::GetKeyChordName(ImGuiKeyChord key_chord)
     ImGuiContext& g = *GImGui;
 
     const ImGuiKey key = (ImGuiKey)(key_chord & ~ImGuiMod_Mask_);
-    if (IsModKey(key))
-        key_chord &= ~GetModForModKey(key); // Return "Ctrl+LeftShift" instead of "Ctrl+Shift+LeftShift"
+    if (IsLRModKey(key))
+        key_chord &= ~GetModForLRModKey(key); // Return "Ctrl+LeftShift" instead of "Ctrl+Shift+LeftShift"
     ImFormatString(g.TempKeychordName, IM_ARRAYSIZE(g.TempKeychordName), "%s%s%s%s%s",
         (key_chord & ImGuiMod_Ctrl) ? "Ctrl+" : "",
         (key_chord & ImGuiMod_Shift) ? "Shift+" : "",
@@ -8780,8 +8780,9 @@ static int CalcRoutingScore(ImGuiID focus_scope_id, ImGuiID owner_id, ImGuiInput
     return 0;
 }
 
-// We need this to filter some Shortcut() routes when an item e.g. an InputText() is active
-// e.g. ImGuiKey_G won't be considered a shortcut when item is active, but ImGuiMod|ImGuiKey_G can be.
+// - We need this to filter some Shortcut() routes when an item e.g. an InputText() is active
+//   e.g. ImGuiKey_G won't be considered a shortcut when item is active, but ImGuiMod|ImGuiKey_G can be.
+// - This is also used by UpdateInputEvents() to avoid trickling in the most common case of e.g. pressing ImGuiKey_G also emitting a G character.
 static bool IsKeyChordPotentiallyCharInput(ImGuiKeyChord key_chord)
 {
     // Mimic 'ignore_char_inputs' logic in InputText()
@@ -8795,6 +8796,8 @@ static bool IsKeyChordPotentiallyCharInput(ImGuiKeyChord key_chord)
 
     // Return true for A-Z, 0-9 and other keys associated to char inputs. Other keys such as F1-F12 won't be filtered.
     ImGuiKey key = (ImGuiKey)(key_chord & ~ImGuiMod_Mask_);
+    if (key == ImGuiKey_None)
+        return false;
     return g.KeysMayBeCharInput.TestBit(key);
 }
 
@@ -9599,9 +9602,9 @@ void ImGui::UpdateInputEvents(bool trickle_fast_inputs)
     // Only trickle chars<>key when working with InputText()
     // FIXME: InputText() could parse event trail?
     // FIXME: Could specialize chars<>keys trickling rules for control keys (those not typically associated to characters)
-    const bool trickle_interleaved_keys_and_text = (trickle_fast_inputs && g.WantTextInputNextFrame == 1);
+    const bool trickle_interleaved_nonchar_keys_and_text = (trickle_fast_inputs && g.WantTextInputNextFrame == 1);
 
-    bool mouse_moved = false, mouse_wheeled = false, key_changed = false, text_inputted = false;
+    bool mouse_moved = false, mouse_wheeled = false, key_changed = false, key_changed_nonchar = false, text_inputted = false;
     int  mouse_button_changed = 0x00;
     ImBitArray<ImGuiKey_KeysData_SIZE> key_changed_mask;
 
@@ -9653,12 +9656,19 @@ void ImGui::UpdateInputEvents(bool trickle_fast_inputs)
             IM_ASSERT(key != ImGuiKey_None);
             ImGuiKeyData* key_data = GetKeyData(key);
             const int key_data_index = (int)(key_data - g.IO.KeysData);
-            if (trickle_fast_inputs && key_data->Down != e->Key.Down && (key_changed_mask.TestBit(key_data_index) || text_inputted || mouse_button_changed != 0))
+            if (trickle_fast_inputs && key_data->Down != e->Key.Down && (key_changed_mask.TestBit(key_data_index) || mouse_button_changed != 0))
                 break;
+
+            const bool key_is_potentially_for_char_input = IsKeyChordPotentiallyCharInput(GetMergedModsFromKeys() | key);
+            if (trickle_interleaved_nonchar_keys_and_text && (text_inputted && !key_is_potentially_for_char_input))
+                break;
+
             key_data->Down = e->Key.Down;
             key_data->AnalogValue = e->Key.AnalogValue;
             key_changed = true;
             key_changed_mask.SetBit(key_data_index);
+            if (trickle_interleaved_nonchar_keys_and_text && !key_is_potentially_for_char_input)
+                key_changed_nonchar = true;
 
             // Allow legacy code using io.KeysDown[GetKeyIndex()] with new backends
 #ifndef IMGUI_DISABLE_OBSOLETE_KEYIO
@@ -9672,11 +9682,13 @@ void ImGui::UpdateInputEvents(bool trickle_fast_inputs)
             if (io.ConfigFlags & ImGuiConfigFlags_NoKeyboard)
                 continue;
             // Trickling Rule: Stop processing queued events if keys/mouse have been interacted with
-            if (trickle_fast_inputs && ((key_changed && trickle_interleaved_keys_and_text) || mouse_button_changed != 0 || mouse_moved || mouse_wheeled))
+            if (trickle_fast_inputs && (mouse_button_changed != 0 || mouse_moved || mouse_wheeled))
+                break;
+            if (trickle_interleaved_nonchar_keys_and_text && key_changed_nonchar)
                 break;
             unsigned int c = e->Text.Char;
             io.InputQueueCharacters.push_back(c <= IM_UNICODE_CODEPOINT_MAX ? (ImWchar)c : IM_UNICODE_CODEPOINT_INVALID);
-            if (trickle_interleaved_keys_and_text)
+            if (trickle_interleaved_nonchar_keys_and_text)
                 text_inputted = true;
         }
         else if (e->Type == ImGuiInputEventType_Focus)
