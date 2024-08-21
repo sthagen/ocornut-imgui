@@ -5068,6 +5068,8 @@ static void InitViewportDrawData(ImGuiViewportP* viewport)
 // - If the code here changes, may need to update code of functions like NextColumn() and PushColumnClipRect():
 //   some frequently called functions which to modify both channels and clipping simultaneously tend to use the
 //   more specialized SetWindowClipRectBeforeSetChannel() to avoid extraneous updates of underlying ImDrawCmds.
+// - This is analoguous to PushFont()/PopFont() in the sense that are a mixing a global stack and a window stack,
+//   which in the case of ClipRect is not so problematic but tends to be more restrictive for fonts.
 void ImGui::PushClipRect(const ImVec2& clip_rect_min, const ImVec2& clip_rect_max, bool intersect_with_current_clip_rect)
 {
     ImGuiWindow* window = GetCurrentWindow();
@@ -7064,10 +7066,14 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         // Affected by window/frame border size. Used by:
         // - Begin() initial clip rect
         float top_border_size = (((flags & ImGuiWindowFlags_MenuBar) || !(flags & ImGuiWindowFlags_NoTitleBar)) ? style.FrameBorderSize : window->WindowBorderSize);
-        window->InnerClipRect.Min.x = ImFloor(0.5f + window->InnerRect.Min.x + window->WindowBorderSize);
-        window->InnerClipRect.Min.y = ImFloor(0.5f + window->InnerRect.Min.y + top_border_size);
-        window->InnerClipRect.Max.x = ImFloor(0.5f + window->InnerRect.Max.x - window->WindowBorderSize);
-        window->InnerClipRect.Max.y = ImFloor(0.5f + window->InnerRect.Max.y - window->WindowBorderSize);
+
+        // Try to match the fact that our border is drawn centered over the window rectangle, rather than inner.
+        // This is why we do a *0.5f here. We don't currently even technically support large values for WindowBorderSize,
+        // see e.g #7887 #7888, but may do after we move the window border to become an inner border (and then we can remove the 0.5f here).
+        window->InnerClipRect.Min.x = ImFloor(0.5f + window->InnerRect.Min.x + window->WindowBorderSize * 0.5f);
+        window->InnerClipRect.Min.y = ImFloor(0.5f + window->InnerRect.Min.y + top_border_size * 0.5f);
+        window->InnerClipRect.Max.x = ImFloor(window->InnerRect.Max.x - window->WindowBorderSize * 0.5f);
+        window->InnerClipRect.Max.y = ImFloor(window->InnerRect.Max.y - window->WindowBorderSize * 0.5f);
         window->InnerClipRect.ClipWithFull(host_rect);
 
         // Default item width. Make it proportional to window size if window manually resizes
@@ -7574,22 +7580,31 @@ void ImGui::SetCurrentFont(ImFont* font)
     g.DrawListSharedData.FontScale = g.FontScale;
 }
 
+// Use ImDrawList::_SetTextureID(), making our shared g.FontStack[] authorative against window-local ImDrawList.
+// - Whereas ImDrawList::PushTextureID()/PopTextureID() is not to be used across Begin() calls.
+// - Note that we don't propagate current texture id when e.g. Begin()-ing into a new window, we never really did...
+//   - Some code paths never really fully worked with multiple atlas textures.
+//   - The right-ish solution may be to remove _SetTextureID() and make AddText/RenderText lazily call PushTextureID()/PopTextureID()
+//     the same way AddImage() does, but then all other primitives would also need to? I don't think we should tackle this problem
+//     because we have a concrete need and a test bed for multiple atlas textures.
 void ImGui::PushFont(ImFont* font)
 {
     ImGuiContext& g = *GImGui;
-    if (!font)
+    if (font == NULL)
         font = GetDefaultFont();
-    SetCurrentFont(font);
     g.FontStack.push_back(font);
-    g.CurrentWindow->DrawList->PushTextureID(font->ContainerAtlas->TexID);
+    SetCurrentFont(font);
+    g.CurrentWindow->DrawList->_SetTextureID(font->ContainerAtlas->TexID);
 }
 
 void  ImGui::PopFont()
 {
     ImGuiContext& g = *GImGui;
-    g.CurrentWindow->DrawList->PopTextureID();
+    IM_ASSERT(g.FontStack.Size > 0);
     g.FontStack.pop_back();
-    SetCurrentFont(g.FontStack.empty() ? GetDefaultFont() : g.FontStack.back());
+    ImFont* font = g.FontStack.Size == 0 ? GetDefaultFont() : g.FontStack.back();
+    SetCurrentFont(font);
+    g.CurrentWindow->DrawList->_SetTextureID(font->ContainerAtlas->TexID);
 }
 
 void ImGui::PushItemFlag(ImGuiItemFlags option, bool enabled)
