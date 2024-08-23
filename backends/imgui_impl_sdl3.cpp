@@ -21,6 +21,10 @@
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
+//  2024-08-22: moved some OS/backend related function pointers from ImGuiIO to ImGuiPlatformIO:
+//               - io.GetClipboardTextFn    -> platform_io.Platform_GetClipboardTextFn
+//               - io.SetClipboardTextFn    -> platform_io.Platform_SetClipboardTextFn
+//               - io.PlatformSetImeDataFn  -> platform_io.Platform_SetImeDataFn
 //  2024-08-19: Storing SDL_WindowID inside ImGuiViewport::PlatformHandle instead of SDL_Window*.
 //  2024-08-19: ImGui_ImplSDL3_ProcessEvent() now ignores events intended for other SDL windows. (#7853)
 //  2024-07-22: Update for SDL3 api changes: SDL_GetGamepads() memory ownership change. (#7807)
@@ -116,7 +120,7 @@ static ImGui_ImplSDL3_Data* ImGui_ImplSDL3_GetBackendData()
 }
 
 // Functions
-static const char* ImGui_ImplSDL3_GetClipboardText(void*)
+static const char* ImGui_ImplSDL3_GetClipboardText(ImGuiContext*)
 {
     ImGui_ImplSDL3_Data* bd = ImGui_ImplSDL3_GetBackendData();
     if (bd->ClipboardTextData)
@@ -126,7 +130,7 @@ static const char* ImGui_ImplSDL3_GetClipboardText(void*)
     return bd->ClipboardTextData;
 }
 
-static void ImGui_ImplSDL3_SetClipboardText(void*, const char* text)
+static void ImGui_ImplSDL3_SetClipboardText(ImGuiContext*, const char* text)
 {
     SDL_SetClipboardText(text);
 }
@@ -454,10 +458,10 @@ static bool ImGui_ImplSDL3_Init(SDL_Window* window, SDL_Renderer* renderer, void
     bd->Renderer = renderer;
     bd->MouseCanUseGlobalState = mouse_can_use_global_state;
 
-    io.SetClipboardTextFn = ImGui_ImplSDL3_SetClipboardText;
-    io.GetClipboardTextFn = ImGui_ImplSDL3_GetClipboardText;
-    io.ClipboardUserData = nullptr;
-    io.PlatformSetImeDataFn = ImGui_ImplSDL3_PlatformSetImeData;
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+    platform_io.Platform_SetClipboardTextFn = ImGui_ImplSDL3_SetClipboardText;
+    platform_io.Platform_GetClipboardTextFn = ImGui_ImplSDL3_GetClipboardText;
+    platform_io.Platform_SetImeDataFn = ImGui_ImplSDL3_PlatformSetImeData;
 
     // Gamepad handling
     bd->GamepadMode = ImGui_ImplSDL3_GamepadMode_AutoFirst;

@@ -21,6 +21,11 @@
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
+//  2024-08-22: moved some OS/backend related function pointers from ImGuiIO to ImGuiPlatformIO:
+//               - io.GetClipboardTextFn    -> platform_io.Platform_GetClipboardTextFn
+//               - io.SetClipboardTextFn    -> platform_io.Platform_SetClipboardTextFn
+//               - io.PlatformOpenInShellFn -> platform_io.Platform_OpenInShellFn
+//               - io.PlatformSetImeDataFn  -> platform_io.Platform_SetImeDataFn
 //  2024-08-19: Storing SDL's Uint32 WindowID inside ImGuiViewport::PlatformHandle instead of SDL_Window*.
 //  2024-08-19: ImGui_ImplSDL2_ProcessEvent() now ignores events intended for other SDL windows. (#7853)
 //  2024-07-02: Emscripten: Added io.PlatformOpenInShellFn() handler for Emscripten versions.
@@ -143,7 +148,7 @@ static ImGui_ImplSDL2_Data* ImGui_ImplSDL2_GetBackendData()
 }
 
 // Functions
-static const char* ImGui_ImplSDL2_GetClipboardText(void*)
+static const char* ImGui_ImplSDL2_GetClipboardText(ImGuiContext*)
 {
     ImGui_ImplSDL2_Data* bd = ImGui_ImplSDL2_GetBackendData();
     if (bd->ClipboardTextData)
@@ -152,7 +157,7 @@ static const char* ImGui_ImplSDL2_GetClipboardText(void*)
     return bd->ClipboardTextData;
 }
 
-static void ImGui_ImplSDL2_SetClipboardText(void*, const char* text)
+static void ImGui_ImplSDL2_SetClipboardText(ImGuiContext*, const char* text)
 {
     SDL_SetClipboardText(text);
 }
@@ -458,12 +463,13 @@ static bool ImGui_ImplSDL2_Init(SDL_Window* window, SDL_Renderer* renderer, void
     bd->Renderer = renderer;
     bd->MouseCanUseGlobalState = mouse_can_use_global_state;
 
-    io.SetClipboardTextFn = ImGui_ImplSDL2_SetClipboardText;
-    io.GetClipboardTextFn = ImGui_ImplSDL2_GetClipboardText;
-    io.ClipboardUserData = nullptr;
-    io.PlatformSetImeDataFn = ImGui_ImplSDL2_PlatformSetImeData;
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+    platform_io.Platform_SetClipboardTextFn = ImGui_ImplSDL2_SetClipboardText;
+    platform_io.Platform_GetClipboardTextFn = ImGui_ImplSDL2_GetClipboardText;
+    platform_io.Platform_ClipboardUserData = nullptr;
+    platform_io.Platform_SetImeDataFn = ImGui_ImplSDL2_PlatformSetImeData;
 #ifdef __EMSCRIPTEN__
-    io.PlatformOpenInShellFn = [](ImGuiContext*, const char* url) { ImGui_ImplSDL2_EmscriptenOpenURL(url); return true; };
+    platform_io.Platform_OpenInShellFn = [](ImGuiContext*, const char* url) { ImGui_ImplSDL2_EmscriptenOpenURL(url); return true; };
 #endif
 
     // Gamepad handling
