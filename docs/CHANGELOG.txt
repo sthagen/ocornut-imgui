@@ -54,6 +54,11 @@ Breaking changes:
     - Won't warn:   ImGui::Image((ImTextureID)(intptr_t)MyTextureData), ...);
   - Note that you can always define ImTextureID to be your own high-level structures
     (with dedicated constructors) if you like.
+- IO: moved ImGuiConfigFlags_NavEnableSetMousePos to standalone io.ConfigNavMoveSetMousePos bool.
+- IO: moved ImGuiConfigFlags_NavNoCaptureKeyboard to standalone io.ConfigNavCaptureKeyboard bool 
+  (note the inverted value!). (#2517, #2009)
+  Kept legacy names (will obsolete) + code that copies settings once the first time. 
+  Dynamically changing the old value won't work. Switch to using the new value!
 
 Other changes:
 
@@ -61,6 +66,16 @@ Other changes:
   ImGui_ImplXXXX_RenderDrawData() of standard backend to expose selected render
   state to draw callbacks. (#6969, #5834, #7468, #3590)
 - IO: WantCaptureKeyboard is never set when ImGuiConfigFlags_NoKeyboard is enabled. (#4921)
+- Error Handling: turned a few more functions into recoverable errors. (#1651)
+- Nav: added io.ConfigNavEscapeClearFocusWindow to clear focused window on Escape. (#3200)
+- Nav: pressing escape to hide nav highlight doesn't clear location from when ctrl+tabbing 
+  back into same window later.
+- Nav: fixed Ctrl+Tab so when starting with no focused window it starts from the top-most
+  window. (#3200)
+- Nav: rectangle highlight not rendered for items with ImGuiItemFlags_NoNav. Can be relevant
+  when e.g activating the item with mouse, then ctrl+tabbing back and forth. 
+- Tooltips: fixed incorrect tooltip positioning when using keyboard/gamepad navigation 
+  (1.91.3 regression). (#8036)
 - DrawList: AddCallback() added an optional size parameter allowing to copy and
   store any amount of user data for usage by callbacks: (#6969, #4770, #7665)
   - If userdata_size == 0: we copy/store the 'userdata' argument as-is (existing behavior).
@@ -72,6 +87,8 @@ Other changes:
 - Tables: fixed initial auto-sizing issue with synched-instances. (#8045, #7218)
 - InputText: fixed an issue with not declaring ownership of Delete/Backspace/Arrow keys,
   preventing use of external shortcuts not guarded by an ActiveId check. (#8048) [@geertbleyen]
+- InputText: ensure mouse cursor shape is set regardless of whether keyboard mode is 
+  enabled or not. (#6417)
 - Backends: DX11, DX12, SDLRenderer2/3. Vulkan, WGPU: expose selected state in
   ImGui_ImplXXXX_RenderState structures during render loop. (#6969, #5834, #7468, #3590)
 - Backends: DX9, DX10, DX11, DX12, OpenGL, Vulkan, WGPU: Changed default texture sampler
