@@ -542,7 +542,8 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
 
     // Mouse handling
     const ImGuiID test_owner_id = (flags & ImGuiButtonFlags_NoTestKeyOwner) ? ImGuiKeyOwner_Any : id;
-    if (hovered)
+    const bool hovered_disabled = (g.HoveredId == id && g.HoveredIdIsDisabled);
+    if (hovered || hovered_disabled)
     {
         IM_ASSERT(id != 0); // Lazily check inside rare path.
 
@@ -559,7 +560,8 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
             }
 
         // Process initial action
-        if (!(flags & ImGuiButtonFlags_NoKeyModsAllowed) || (!g.IO.KeyCtrl && !g.IO.KeyShift && !g.IO.KeyAlt))
+        const bool mods_ok = !(flags & ImGuiButtonFlags_NoKeyModsAllowed) || (!g.IO.KeyCtrl && !g.IO.KeyShift && !g.IO.KeyAlt);
+        if (mods_ok && !hovered_disabled)
         {
             if (mouse_button_clicked != -1 && g.ActiveId != id)
             {
@@ -606,7 +608,7 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
                     if (!has_repeated_at_least_once)
                         pressed = true;
                     if (!(flags & ImGuiButtonFlags_NoNavFocus))
-                        SetFocusID(id, window);
+                        SetFocusID(id, window); // FIXME: Lack of FocusWindow() call here is inconsistent with other paths. Research why.
                     ClearActiveID();
                 }
             }
@@ -616,6 +618,17 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
             if (g.ActiveId == id && (item_flags & ImGuiItemFlags_ButtonRepeat))
                 if (g.IO.MouseDownDuration[g.ActiveIdMouseButton] > 0.0f && IsMouseClicked(g.ActiveIdMouseButton, ImGuiInputFlags_Repeat, test_owner_id))
                     pressed = true;
+        }
+        else if (mods_ok && hovered_disabled)
+        {
+            if (mouse_button_clicked != -1 && g.ActiveId != id)
+            {
+                // Disabled path still focus
+                // FIXME-NAV: Could somehow call SetNavID() with a null ID but mouse pos as NavRectRel so nav may be resumed?
+                // Will do it once we do it for regular click on window-void.
+                if (flags & (ImGuiButtonFlags_PressedOnClickRelease | ImGuiButtonFlags_PressedOnClickReleaseAnywhere | ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_PressedOnDoubleClick))
+                    FocusWindow(window, ImGuiFocusRequestFlags_RestoreFocusedChild);
+            }
         }
 
         if (pressed)
@@ -785,11 +798,12 @@ bool ImGui::InvisibleButton(const char* str_id, const ImVec2& size_arg, ImGuiBut
     ImVec2 size = CalcItemSize(size_arg, 0.0f, 0.0f);
     const ImRect bb(window->DC.CursorPos, window->DC.CursorPos + size);
     ItemSize(size);
-    if (!ItemAdd(bb, id))
+    if (!ItemAdd(bb, id, NULL, (flags & ImGuiButtonFlags_EnableNav) ? ImGuiItemFlags_None : ImGuiItemFlags_NoNav))
         return false;
 
     bool hovered, held;
     bool pressed = ButtonBehavior(bb, id, &hovered, &held, flags);
+    RenderNavHighlight(bb, id);
 
     IMGUI_TEST_ENGINE_ITEM_INFO(id, str_id, g.LastItemData.StatusFlags);
     return pressed;
