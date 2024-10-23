@@ -36,6 +36,17 @@ HOW TO UPDATE?
 - Please report any issue!
 
 -----------------------------------------------------------------------
+ VERSION 1.91.5 WIP (In Progress)
+-----------------------------------------------------------------------
+
+Breaking changes:
+
+Other changes:
+
+- Backends: DX12: Unmap() call specify written range. The range is informational and may be used by debug tools.
+
+
+-----------------------------------------------------------------------
  VERSION 1.91.4 (Released 2024-10-18)
 -----------------------------------------------------------------------
 
