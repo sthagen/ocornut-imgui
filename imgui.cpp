@@ -1422,6 +1422,7 @@ ImGuiIO::ImGuiIO()
     ConfigDragClickToInputText = false;
     ConfigWindowsResizeFromEdges = true;
     ConfigWindowsMoveFromTitleBarOnly = false;
+    ConfigWindowsCopyContentsWithCtrlC = false;
     ConfigScrollbarScrollByPage = true;
     ConfigMemoryCompactTimer = 60.0f;
     ConfigDebugIsDebuggerPresent = false;
@@ -4007,7 +4008,8 @@ ImGuiContext::ImGuiContext(ImFontAtlas* shared_font_atlas)
     memset(LocalizationTable, 0, sizeof(LocalizationTable));
 
     LogEnabled = false;
-    LogType = ImGuiLogType_None;
+    LogFlags = ImGuiLogFlags_None;
+    LogWindow = NULL;
     LogNextPrefix = LogNextSuffix = NULL;
     LogFile = NULL;
     LogLinePosY = FLT_MAX;
@@ -7586,6 +7588,13 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         if (want_focus && window == g.NavWindow)
             NavInitWindow(window, false); // <-- this is in the way for us to be able to defer and sort reappearing FocusWindow() calls
 
+        // Pressing CTRL+C copy window content into the clipboard
+        // [EXPERIMENTAL] Breaks on nested Begin/End pairs. We need to work that out and add better logging scope.
+        // [EXPERIMENTAL] Text outputs has many issues.
+        if (g.IO.ConfigWindowsCopyContentsWithCtrlC)
+            if (g.NavWindow && g.NavWindow->RootWindow == window && g.ActiveId == 0 && Shortcut(ImGuiMod_Ctrl | ImGuiKey_C))
+                LogToClipboard(0);
+
         // Title bar
         if (!(flags & ImGuiWindowFlags_NoTitleBar))
             RenderWindowTitleBarContents(window, ImRect(title_bar_rect.Min.x + window->WindowBorderSize, title_bar_rect.Min.y, title_bar_rect.Max.x - window->WindowBorderSize, title_bar_rect.Max.y), name, p_open);
@@ -7595,16 +7604,6 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
 
         if (flags & ImGuiWindowFlags_Tooltip)
             g.TooltipPreviousWindow = window;
-
-        // Pressing CTRL+C while holding on a window copy its content to the clipboard
-        // This works but 1. doesn't handle multiple Begin/End pairs, 2. recursing into another Begin/End pair - so we need to work that out and add better logging scope.
-        // Maybe we can support CTRL+C on every element?
-        /*
-        //if (g.NavWindow == window && g.ActiveId == 0)
-        if (g.ActiveId == window->MoveId)
-            if (g.IO.KeyCtrl && IsKeyPressed(ImGuiKey_C))
-                LogToClipboard();
-        */
 
         // We fill last item data based on Title Bar/Tab, in order for IsItemHovered() and IsItemActive() to be usable after Begin().
         // This is useful to allow creating context menus on title bar only, etc.
@@ -7748,7 +7747,7 @@ void ImGui::End()
     }
 
     // Stop logging
-    if (!(window->Flags & ImGuiWindowFlags_ChildWindow))    // FIXME: add more options for scope of logging
+    if (g.LogWindow == window) // FIXME: add more options for scope of logging
         LogFinish();
 
     if (window->DC.IsSetPos)
@@ -14324,15 +14323,17 @@ void ImGui::LogRenderedText(const ImVec2* ref_pos, const char* text, const char*
 }
 
 // Start logging/capturing text output
-void ImGui::LogBegin(ImGuiLogType type, int auto_open_depth)
+void ImGui::LogBegin(ImGuiLogFlags flags, int auto_open_depth)
 {
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
     IM_ASSERT(g.LogEnabled == false);
-    IM_ASSERT(g.LogFile == NULL);
-    IM_ASSERT(g.LogBuffer.empty());
+    IM_ASSERT(g.LogFile == NULL && g.LogBuffer.empty());
+    IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiLogFlags_OutputMask_)); // Check that only 1 type flag is used
+
     g.LogEnabled = g.ItemUnclipByLog = true;
-    g.LogType = type;
+    g.LogFlags = flags;
+    g.LogWindow = window;
     g.LogNextPrefix = g.LogNextSuffix = NULL;
     g.LogDepthRef = window->DC.TreeDepth;
     g.LogDepthToExpand = ((auto_open_depth >= 0) ? auto_open_depth : g.LogDepthToExpandDefault);
@@ -14355,7 +14356,7 @@ void ImGui::LogToTTY(int auto_open_depth)
         return;
     IM_UNUSED(auto_open_depth);
 #ifndef IMGUI_DISABLE_TTY_FUNCTIONS
-    LogBegin(ImGuiLogType_TTY, auto_open_depth);
+    LogBegin(ImGuiLogFlags_OutputTTY, auto_open_depth);
     g.LogFile = stdout;
 #endif
 }
@@ -14381,7 +14382,7 @@ void ImGui::LogToFile(int auto_open_depth, const char* filename)
         return;
     }
 
-    LogBegin(ImGuiLogType_File, auto_open_depth);
+    LogBegin(ImGuiLogFlags_OutputFile, auto_open_depth);
     g.LogFile = f;
 }
 
@@ -14391,7 +14392,7 @@ void ImGui::LogToClipboard(int auto_open_depth)
     ImGuiContext& g = *GImGui;
     if (g.LogEnabled)
         return;
-    LogBegin(ImGuiLogType_Clipboard, auto_open_depth);
+    LogBegin(ImGuiLogFlags_OutputClipboard, auto_open_depth);
 }
 
 void ImGui::LogToBuffer(int auto_open_depth)
@@ -14399,7 +14400,7 @@ void ImGui::LogToBuffer(int auto_open_depth)
     ImGuiContext& g = *GImGui;
     if (g.LogEnabled)
         return;
-    LogBegin(ImGuiLogType_Buffer, auto_open_depth);
+    LogBegin(ImGuiLogFlags_OutputBuffer, auto_open_depth);
 }
 
 void ImGui::LogFinish()
@@ -14409,29 +14410,29 @@ void ImGui::LogFinish()
         return;
 
     LogText(IM_NEWLINE);
-    switch (g.LogType)
+    switch (g.LogFlags & ImGuiLogFlags_OutputMask_)
     {
-    case ImGuiLogType_TTY:
+    case ImGuiLogFlags_OutputTTY:
 #ifndef IMGUI_DISABLE_TTY_FUNCTIONS
         fflush(g.LogFile);
 #endif
         break;
-    case ImGuiLogType_File:
+    case ImGuiLogFlags_OutputFile:
         ImFileClose(g.LogFile);
         break;
-    case ImGuiLogType_Buffer:
+    case ImGuiLogFlags_OutputBuffer:
         break;
-    case ImGuiLogType_Clipboard:
+    case ImGuiLogFlags_OutputClipboard:
         if (!g.LogBuffer.empty())
             SetClipboardText(g.LogBuffer.begin());
         break;
-    case ImGuiLogType_None:
+    default:
         IM_ASSERT(0);
         break;
     }
 
     g.LogEnabled = g.ItemUnclipByLog = false;
-    g.LogType = ImGuiLogType_None;
+    g.LogFlags = ImGuiLogFlags_None;
     g.LogFile = NULL;
     g.LogBuffer.clear();
 }
