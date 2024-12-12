@@ -36,8 +36,22 @@ HOW TO UPDATE?
 - Please report any issue!
 
 -----------------------------------------------------------------------
+ VERSION 1.91.7 WIP (In Progress)
+-----------------------------------------------------------------------
+
+Breaking changes:
+
+Other changes:
+
+- Backends: Vulkan: Fixed setting VkSwapchainCreateInfoKHR::preTransform for
+  platforms not supporting VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR. (#8222) [@Zer0xFF]
+
+
+-----------------------------------------------------------------------
  VERSION 1.91.6 (Released 2024-12-11)
 -----------------------------------------------------------------------
+
+Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v1.91.6
 
 Breaking changes:
 
