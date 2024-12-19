@@ -4389,6 +4389,7 @@ void ImGui::InputTextDeactivateHook(ImGuiID id)
     else
     {
         IM_ASSERT(state->TextA.Data != 0);
+        IM_ASSERT(state->TextA[state->TextLen] == 0);
         g.InputTextDeactivatedState.TextA.resize(state->TextLen + 1);
         memcpy(g.InputTextDeactivatedState.TextA.Data, state->TextA.Data, state->TextLen + 1);
     }
@@ -4519,6 +4520,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     if (init_reload_from_user_buf)
     {
         int new_len = (int)strlen(buf);
+        IM_ASSERT(new_len + 1 <= buf_size && "Is your input buffer properly zero-terminated?");
         state->WantReloadUserBuf = false;
         InputTextReconcileUndoState(state, state->TextA.Data, state->TextLen, buf, new_len);
         state->TextA.resize(buf_size + 1); // we use +1 to make sure that .Data is always pointing to at least an empty string.
@@ -4540,6 +4542,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         // Take a copy of the initial buffer value.
         // From the moment we focused we are normally ignoring the content of 'buf' (unless we are in read-only mode)
         const int buf_len = (int)strlen(buf);
+        IM_ASSERT(buf_len + 1 <= buf_size && "Is your input buffer properly zero-terminated?");
         state->TextToRevertTo.resize(buf_len + 1);    // UTF-8. we use +1 to make sure that .Data is always pointing to at least an empty string.
         memcpy(state->TextToRevertTo.Data, buf, buf_len + 1);
 
@@ -4551,7 +4554,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
         // Start edition
         state->ID = id;
-        state->TextLen = (int)strlen(buf);
+        state->TextLen = buf_len;
         if (!is_readonly)
         {
             state->TextA.resize(buf_size + 1); // we use +1 to make sure that .Data is always pointing to at least an empty string.
@@ -7514,6 +7517,12 @@ ImGuiMultiSelectIO* ImGui::BeginMultiSelect(ImGuiMultiSelectFlags flags, int sel
         flags &= ~(ImGuiMultiSelectFlags_BoxSelect2d | ImGuiMultiSelectFlags_BoxSelect1d);
     if (flags & ImGuiMultiSelectFlags_BoxSelect2d)
         flags &= ~ImGuiMultiSelectFlags_BoxSelect1d;
+
+    // FIXME: Workaround to the fact we override CursorMaxPos, meaning size measurement are lost. (#8250)
+    // They should perhaps be stacked properly?
+    if (ImGuiTable* table = g.CurrentTable)
+        if (table->CurrentColumn != -1)
+            TableEndCell(table); // This is currently safe to call multiple time. If that properly is lost we can extract the "save measurement" part of it.
 
     // FIXME: BeginFocusScope()
     const ImGuiID id = window->IDStack.back();
