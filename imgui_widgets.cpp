@@ -82,9 +82,14 @@ Index of this file:
 #pragma clang diagnostic ignored "-Wnontrivial-memaccess"           // warning: first argument in call to 'memset' is a pointer to non-trivially copyable type
 #elif defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wpragmas"                          // warning: unknown option after '#pragma GCC diagnostic' kind
+#pragma GCC diagnostic ignored "-Wfloat-equal"                      // warning: comparing floating-point with '==' or '!=' is unsafe
+#pragma GCC diagnostic ignored "-Wformat"                           // warning: format '%p' expects argument of type 'int'/'void*', but argument X has type 'unsigned int'/'ImGuiWindow*'
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"                // warning: format not a string literal, format string not checked
-#pragma GCC diagnostic ignored "-Wclass-memaccess"                  // [__GNUC__ >= 8] warning: 'memset/memcpy' clearing/writing an object of type 'xxxx' with no trivial copy-assignment; use assignment or value-initialization instead
 #pragma GCC diagnostic ignored "-Wdeprecated-enum-enum-conversion"  // warning: bitwise operation between different enumeration types ('XXXFlags_' and 'XXXFlagsPrivate_') is deprecated
+#pragma GCC diagnostic ignored "-Wdouble-promotion"                 // warning: implicit conversion from 'float' to 'double' when passing argument to function
+#pragma GCC diagnostic ignored "-Wstrict-overflow"                  // warning: assuming signed overflow does not occur when simplifying division / ..when changing X +- C1 cmp C2 to X cmp C2 -+ C1
+#pragma GCC diagnostic ignored "-Wclass-memaccess"                  // [__GNUC__ >= 8] warning: 'memset/memcpy' clearing/writing an object of type 'xxxx' with no trivial copy-assignment; use assignment or value-initialization instead
+#pragma GCC diagnostic ignored "-Wcast-qual"                        // warning: cast from type 'const xxxx *' to type 'xxxx *' casts away qualifiers
 #endif
 
 //-------------------------------------------------------------------------
@@ -3938,12 +3943,12 @@ static ImVec2 InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, c
 namespace ImStb
 {
 static int     STB_TEXTEDIT_STRINGLEN(const ImGuiInputTextState* obj)                             { return obj->TextLen; }
-static char    STB_TEXTEDIT_GETCHAR(const ImGuiInputTextState* obj, int idx)                      { IM_ASSERT(idx <= obj->TextLen); return obj->TextA[idx]; }
-static float   STB_TEXTEDIT_GETWIDTH(ImGuiInputTextState* obj, int line_start_idx, int char_idx)  { unsigned int c; ImTextCharFromUtf8(&c, obj->TextA.Data + line_start_idx + char_idx, obj->TextA.Data + obj->TextLen); if ((ImWchar)c == '\n') return IMSTB_TEXTEDIT_GETWIDTH_NEWLINE; ImGuiContext& g = *obj->Ctx; return g.Font->GetCharAdvance((ImWchar)c) * g.FontScale; }
+static char    STB_TEXTEDIT_GETCHAR(const ImGuiInputTextState* obj, int idx)                      { IM_ASSERT(idx <= obj->TextLen); return obj->TextSrc[idx]; }
+static float   STB_TEXTEDIT_GETWIDTH(ImGuiInputTextState* obj, int line_start_idx, int char_idx)  { unsigned int c; ImTextCharFromUtf8(&c, obj->TextSrc + line_start_idx + char_idx, obj->TextSrc + obj->TextLen); if ((ImWchar)c == '\n') return IMSTB_TEXTEDIT_GETWIDTH_NEWLINE; ImGuiContext& g = *obj->Ctx; return g.Font->GetCharAdvance((ImWchar)c) * g.FontScale; }
 static char    STB_TEXTEDIT_NEWLINE = '\n';
 static void    STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, ImGuiInputTextState* obj, int line_start_idx)
 {
-    const char* text = obj->TextA.Data;
+    const char* text = obj->TextSrc;
     const char* text_remaining = NULL;
     const ImVec2 size = InputTextCalcTextSize(obj->Ctx, text + line_start_idx, text + obj->TextLen, &text_remaining, NULL, true);
     r->x0 = 0.0f;
@@ -3962,15 +3967,15 @@ static int IMSTB_TEXTEDIT_GETNEXTCHARINDEX_IMPL(ImGuiInputTextState* obj, int id
     if (idx >= obj->TextLen)
         return obj->TextLen + 1;
     unsigned int c;
-    return idx + ImTextCharFromUtf8(&c, obj->TextA.Data + idx, obj->TextA.Data + obj->TextLen);
+    return idx + ImTextCharFromUtf8(&c, obj->TextSrc + idx, obj->TextSrc + obj->TextLen);
 }
 
 static int IMSTB_TEXTEDIT_GETPREVCHARINDEX_IMPL(ImGuiInputTextState* obj, int idx)
 {
     if (idx <= 0)
         return -1;
-    const char* p = ImTextFindPreviousUtf8Codepoint(obj->TextA.Data, obj->TextA.Data + idx);
-    return (int)(p - obj->TextA.Data);
+    const char* p = ImTextFindPreviousUtf8Codepoint(obj->TextSrc, obj->TextSrc + idx);
+    return (int)(p - obj->TextSrc);
 }
 
 static bool ImCharIsSeparatorW(unsigned int c)
@@ -3993,10 +3998,10 @@ static int is_word_boundary_from_right(ImGuiInputTextState* obj, int idx)
     if ((obj->Flags & ImGuiInputTextFlags_Password) || idx <= 0)
         return 0;
 
-    const char* curr_p = obj->TextA.Data + idx;
-    const char* prev_p = ImTextFindPreviousUtf8Codepoint(obj->TextA.Data, curr_p);
-    unsigned int curr_c; ImTextCharFromUtf8(&curr_c, curr_p, obj->TextA.Data + obj->TextLen);
-    unsigned int prev_c; ImTextCharFromUtf8(&prev_c, prev_p, obj->TextA.Data + obj->TextLen);
+    const char* curr_p = obj->TextSrc + idx;
+    const char* prev_p = ImTextFindPreviousUtf8Codepoint(obj->TextSrc, curr_p);
+    unsigned int curr_c; ImTextCharFromUtf8(&curr_c, curr_p, obj->TextSrc + obj->TextLen);
+    unsigned int prev_c; ImTextCharFromUtf8(&prev_c, prev_p, obj->TextSrc + obj->TextLen);
 
     bool prev_white = ImCharIsBlankW(prev_c);
     bool prev_separ = ImCharIsSeparatorW(prev_c);
@@ -4009,10 +4014,10 @@ static int is_word_boundary_from_left(ImGuiInputTextState* obj, int idx)
     if ((obj->Flags & ImGuiInputTextFlags_Password) || idx <= 0)
         return 0;
 
-    const char* curr_p = obj->TextA.Data + idx;
-    const char* prev_p = ImTextFindPreviousUtf8Codepoint(obj->TextA.Data, curr_p);
-    unsigned int prev_c; ImTextCharFromUtf8(&prev_c, curr_p, obj->TextA.Data + obj->TextLen);
-    unsigned int curr_c; ImTextCharFromUtf8(&curr_c, prev_p, obj->TextA.Data + obj->TextLen);
+    const char* curr_p = obj->TextSrc + idx;
+    const char* prev_p = ImTextFindPreviousUtf8Codepoint(obj->TextSrc, curr_p);
+    unsigned int prev_c; ImTextCharFromUtf8(&prev_c, curr_p, obj->TextSrc + obj->TextLen);
+    unsigned int curr_c; ImTextCharFromUtf8(&curr_c, prev_p, obj->TextSrc + obj->TextLen);
 
     bool prev_white = ImCharIsBlankW(prev_c);
     bool prev_separ = ImCharIsSeparatorW(prev_c);
@@ -4050,6 +4055,7 @@ static int  STB_TEXTEDIT_MOVEWORDRIGHT_IMPL(ImGuiInputTextState* obj, int idx)  
 static void STB_TEXTEDIT_DELETECHARS(ImGuiInputTextState* obj, int pos, int n)
 {
     // Offset remaining text (+ copy zero terminator)
+    IM_ASSERT(obj->TextSrc == obj->TextA.Data);
     char* dst = obj->TextA.Data + pos;
     char* src = obj->TextA.Data + pos + n;
     memmove(dst, src, obj->TextLen - n - pos + 1);
@@ -4067,11 +4073,13 @@ static bool STB_TEXTEDIT_INSERTCHARS(ImGuiInputTextState* obj, int pos, const ch
         return false;
 
     // Grow internal buffer if needed
+    IM_ASSERT(obj->TextSrc == obj->TextA.Data);
     if (new_text_len + text_len + 1 > obj->TextA.Size)
     {
         if (!is_resizable)
             return false;
         obj->TextA.resize(text_len + ImClamp(new_text_len, 32, ImMax(256, new_text_len)) + 1);
+        obj->TextSrc = obj->TextA.Data;
     }
 
     char* text = obj->TextA.Data;
@@ -4218,6 +4226,7 @@ void ImGuiInputTextCallbackData::InsertChars(int pos, const char* new_text, cons
         IM_ASSERT(Buf == edit_state->TextA.Data);
         int new_buf_size = BufTextLen + ImClamp(new_text_len * 4, 32, ImMax(256, new_text_len)) + 1;
         edit_state->TextA.resize(new_buf_size + 1);
+        edit_state->TextSrc = edit_state->TextA.Data;
         Buf = edit_state->TextA.Data;
         BufSize = edit_state->BufCapacity = new_buf_size;
     }
@@ -4512,7 +4521,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         int new_len = (int)strlen(buf);
         state->WantReloadUserBuf = false;
         InputTextReconcileUndoState(state, state->TextA.Data, state->TextLen, buf, new_len);
-        state->TextA.resize(buf_size + 1);          // we use +1 to make sure that .Data is always pointing to at least an empty string.
+        state->TextA.resize(buf_size + 1); // we use +1 to make sure that .Data is always pointing to at least an empty string.
         state->TextLen = new_len;
         memcpy(state->TextA.Data, buf, state->TextLen + 1);
         state->Stb->select_start = state->ReloadSelectionStart;
@@ -4537,14 +4546,17 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         // Preserve cursor position and undo/redo stack if we come back to same widget
         // FIXME: Since we reworked this on 2022/06, may want to differentiate recycle_cursor vs recycle_undostate?
         bool recycle_state = (state->ID == id && !init_changed_specs);
-        if (recycle_state && (state->TextLen != buf_len || (strncmp(state->TextA.Data, buf, buf_len) != 0)))
+        if (recycle_state && (state->TextLen != buf_len || (state->TextA.Data == NULL || strncmp(state->TextA.Data, buf, buf_len) != 0)))
             recycle_state = false;
 
         // Start edition
         state->ID = id;
-        state->TextA.resize(buf_size + 1);          // we use +1 to make sure that .Data is always pointing to at least an empty string.
         state->TextLen = (int)strlen(buf);
-        memcpy(state->TextA.Data, buf, state->TextLen + 1);
+        if (!is_readonly)
+        {
+            state->TextA.resize(buf_size + 1); // we use +1 to make sure that .Data is always pointing to at least an empty string.
+            memcpy(state->TextA.Data, buf, state->TextLen + 1);
+        }
 
         // Find initial scroll position for right alignment
         state->Scroll = ImVec2(0.0f, 0.0f);
@@ -4608,7 +4620,15 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         // Expose scroll in a manner that is agnostic to us using a child window
         if (is_multiline && state != NULL)
             state->Scroll.y = draw_window->Scroll.y;
+
+        // Read-only mode always ever read from source buffer. Refresh TextLen when active.
+        if (is_readonly && state != NULL)
+            state->TextLen = (int)strlen(buf);
+        //if (is_readonly && state != NULL)
+        //    state->TextA.clear(); // Uncomment to facilitate debugging, but we otherwise prefer to keep/amortize th allocation.
     }
+    if (state != NULL)
+        state->TextSrc = is_readonly ? buf : state->TextA.Data;
 
     // We have an edge case if ActiveId was set through another widget (e.g. widget being swapped), clear id immediately (don't wait until the end of the function)
     if (g.ActiveId == id && state == NULL)
@@ -4873,13 +4893,13 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             // Cut, Copy
             if (g.PlatformIO.Platform_SetClipboardTextFn != NULL)
             {
+                // SetClipboardText() only takes null terminated strings + state->TextSrc may point to read-only user buffer, so we need to make a copy.
                 const int ib = state->HasSelection() ? ImMin(state->Stb->select_start, state->Stb->select_end) : 0;
                 const int ie = state->HasSelection() ? ImMax(state->Stb->select_start, state->Stb->select_end) : state->TextLen;
-
-                char backup = state->TextA.Data[ie];
-                state->TextA.Data[ie] = 0; // A bit of a hack since SetClipboardText only takes null terminated strings
-                SetClipboardText(state->TextA.Data + ib);
-                state->TextA.Data[ie] = backup;
+                g.TempBuffer.reserve(ie - ib + 1);
+                memcpy(g.TempBuffer.Data, state->TextSrc, ie - ib);
+                g.TempBuffer.Data[ie] = 0;
+                SetClipboardText(g.TempBuffer.Data);
             }
             if (is_cut)
             {
@@ -5008,10 +5028,11 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
                     callback_data.UserData = callback_user_data;
 
                     // FIXME-OPT: Undo stack reconcile needs a backup of the data until we rework API, see #7925
-                    state->CallbackTextBackup.resize(state->TextLen + 1);
-                    memcpy(state->CallbackTextBackup.Data, state->TextA.Data, state->TextLen + 1);
-
                     char* callback_buf = is_readonly ? buf : state->TextA.Data;
+                    IM_ASSERT(callback_buf == state->TextSrc);
+                    state->CallbackTextBackup.resize(state->TextLen + 1);
+                    memcpy(state->CallbackTextBackup.Data, callback_buf, state->TextLen + 1);
+
                     callback_data.EventKey = event_key;
                     callback_data.Buf = callback_buf;
                     callback_data.BufTextLen = state->TextLen;
@@ -5046,9 +5067,9 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             }
 
             // Will copy result string if modified
-            if (!is_readonly && strcmp(state->TextA.Data, buf) != 0)
+            if (!is_readonly && strcmp(state->TextSrc, buf) != 0)
             {
-                apply_new_text = state->TextA.Data;
+                apply_new_text = state->TextSrc;
                 apply_new_text_length = state->TextLen;
                 value_changed = true;
             }
@@ -5142,7 +5163,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         // - Measure text height (for scrollbar)
         // We are attempting to do most of that in **one main pass** to minimize the computation cost (non-negligible for large amount of text) + 2nd pass for selection rendering (we could merge them by an extra refactoring effort)
         // FIXME: This should occur on buf_display but we'd need to maintain cursor/select_start/select_end for UTF-8.
-        const char* text_begin = state->TextA.Data;
+        const char* text_begin = buf_display;
         const char* text_end = text_begin + state->TextLen;
         ImVec2 cursor_offset, select_start_offset;
 
@@ -5322,6 +5343,8 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             g.LastItemData.StatusFlags = item_data_backup.StatusFlags;
         }
     }
+    if (state)
+        state->TextSrc = NULL;
 
     // Log as text
     if (g.LogEnabled && (!is_password || is_displaying_hint))
