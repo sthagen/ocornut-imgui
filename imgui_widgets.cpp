@@ -4977,19 +4977,17 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             }
         }
 
-        // When using 'ImGuiInputTextFlags_EnterReturnsTrue' as a special case we reapply the live buffer back to the input buffer
-        // before clearing ActiveId, even though strictly speaking it wasn't modified on this frame.
-        // If we didn't do that, code like InputInt() with ImGuiInputTextFlags_EnterReturnsTrue would fail.
-        // This also allows the user to use InputText() with ImGuiInputTextFlags_EnterReturnsTrue without maintaining any user-side storage
+        // FIXME-OPT: We always reapply the live buffer back to the input buffer before clearing ActiveId,
+        // even though strictly speaking it wasn't modified on this frame. Should mark dirty state from the stb_textedit callbacks.
+        // If we do that, need to ensure that as special case, 'validated == true' also writes back.
+        // This also allows the user to use InputText() without maintaining any user-side storage.
         // (please note that if you use this property along ImGuiInputTextFlags_CallbackResize you can end up with your temporary string object
         // unnecessarily allocating once a frame, either store your string data, either if you don't then don't use ImGuiInputTextFlags_CallbackResize).
-        const bool apply_edit_back_to_user_buffer = !revert_edit || (validated && (flags & ImGuiInputTextFlags_EnterReturnsTrue) != 0);
+        const bool apply_edit_back_to_user_buffer = true;// !revert_edit || (validated && (flags & ImGuiInputTextFlags_EnterReturnsTrue) != 0);
         if (apply_edit_back_to_user_buffer)
         {
-            // Apply new value immediately - copy modified buffer back
+            // Apply current edited text immediately.
             // Note that as soon as the input box is active, the in-widget value gets priority over any underlying modification of the input buffer
-            // FIXME: We actually always render 'buf' when calling DrawList->AddText, making the comment above incorrect.
-            // FIXME-OPT: CPU waste to do this every time the widget is active, should mark dirty state from the stb_textedit callbacks.
 
             // User callback
             if ((flags & (ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackAlways)) != 0)
@@ -6534,6 +6532,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
     // We vertically grow up to current line height up the typical widget height.
     const float frame_height = ImMax(ImMin(window->DC.CurrLineSize.y, g.FontSize + style.FramePadding.y * 2), label_size.y + padding.y * 2);
     const bool span_all_columns = (flags & ImGuiTreeNodeFlags_SpanAllColumns) != 0 && (g.CurrentTable != NULL);
+    const bool span_all_columns_label = (flags & ImGuiTreeNodeFlags_LabelSpanAllColumns) != 0 && (g.CurrentTable != NULL);
     ImRect frame_bb;
     frame_bb.Min.x = span_all_columns ? window->ParentWorkRect.Min.x : (flags & ImGuiTreeNodeFlags_SpanFullWidth) ? window->WorkRect.Min.x : window->DC.CursorPos.x;
     frame_bb.Min.y = window->DC.CursorPos.y;
@@ -6559,7 +6558,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
     bool is_open = TreeNodeUpdateNextOpen(storage_id, flags);
 
     bool is_visible;
-    if (span_all_columns)
+    if (span_all_columns || span_all_columns_label)
     {
         // Modify ClipRect for the ItemAdd(), faster than doing a PushColumnsBackground/PushTableBackgroundChannel for every Selectable..
         const float backup_clip_rect_min_x = window->ClipRect.Min.x;
@@ -6600,7 +6599,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
         return is_open;
     }
 
-    if (span_all_columns)
+    if (span_all_columns || span_all_columns_label)
     {
         TablePushBackgroundChannel();
         g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_HasClipRect;
@@ -6753,7 +6752,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
                 LogSetNextTextDecoration(">", NULL);
         }
 
-        if (span_all_columns)
+        if (span_all_columns && !span_all_columns_label)
             TablePopBackgroundChannel();
 
         // Label
@@ -6761,6 +6760,9 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
             RenderTextClipped(text_pos, frame_bb.Max, label, label_end, &label_size);
         else
             RenderText(text_pos, label, label_end, false);
+
+        if (span_all_columns_label)
+            TablePopBackgroundChannel();
     }
 
     if (store_tree_node_stack_data && is_open)
