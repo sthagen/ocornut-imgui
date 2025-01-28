@@ -4246,6 +4246,23 @@ void ImGuiInputTextCallbackData::InsertChars(int pos, const char* new_text, cons
     BufTextLen += new_text_len;
 }
 
+void ImGui::PushPasswordFont()
+{
+    ImGuiContext& g = *GImGui;
+    ImFont* in_font = g.Font;
+    ImFont* out_font = &g.InputTextPasswordFont;
+    const ImFontGlyph* glyph = in_font->FindGlyph('*');
+    out_font->FontSize = in_font->FontSize;
+    out_font->Scale = in_font->Scale;
+    out_font->Ascent = in_font->Ascent;
+    out_font->Descent = in_font->Descent;
+    out_font->ContainerAtlas = in_font->ContainerAtlas;
+    out_font->FallbackGlyph = glyph;
+    out_font->FallbackAdvanceX = glyph->AdvanceX;
+    IM_ASSERT(out_font->Glyphs.Size == 0 && out_font->IndexAdvanceX.Size == 0 && out_font->IndexLookup.Size == 0);
+    PushFont(out_font);
+}
+
 // Return false to discard a character.
 static bool InputTextFilterCharacter(ImGuiContext* ctx, unsigned int* p_char, ImGuiInputTextFlags flags, ImGuiInputTextCallback callback, void* user_data, bool input_source_is_clipboard)
 {
@@ -4656,19 +4673,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     // Password pushes a temporary font with only a fallback glyph
     if (is_password && !is_displaying_hint)
-    {
-        const ImFontGlyph* glyph = g.Font->FindGlyph('*');
-        ImFont* password_font = &g.InputTextPasswordFont;
-        password_font->FontSize = g.Font->FontSize;
-        password_font->Scale = g.Font->Scale;
-        password_font->Ascent = g.Font->Ascent;
-        password_font->Descent = g.Font->Descent;
-        password_font->ContainerAtlas = g.Font->ContainerAtlas;
-        password_font->FallbackGlyph = glyph;
-        password_font->FallbackAdvanceX = glyph->AdvanceX;
-        IM_ASSERT(password_font->Glyphs.empty() && password_font->IndexAdvanceX.empty() && password_font->IndexLookup.empty());
-        PushFont(password_font);
-    }
+        PushPasswordFont();
 
     // Process mouse inputs and character inputs
     if (g.ActiveId == id)
@@ -9925,7 +9930,7 @@ bool    ImGui::BeginTabItem(const char* label, bool* p_open, ImGuiTabItemFlags f
         IM_ASSERT_USER_ERROR(tab_bar, "Needs to be called between BeginTabBar() and EndTabBar()!");
         return false;
     }
-    IM_ASSERT(!(flags & ImGuiTabItemFlags_Button)); // BeginTabItem() Can't be used with button flags, use TabItemButton() instead!
+    IM_ASSERT((flags & ImGuiTabItemFlags_Button) == 0); // BeginTabItem() Can't be used with button flags, use TabItemButton() instead!
 
     bool ret = TabItemEx(tab_bar, label, p_open, flags, NULL);
     if (ret && !(flags & ImGuiTabItemFlags_NoPushId))
@@ -9969,6 +9974,23 @@ bool    ImGui::TabItemButton(const char* label, ImGuiTabItemFlags flags)
         return false;
     }
     return TabItemEx(tab_bar, label, NULL, flags | ImGuiTabItemFlags_Button | ImGuiTabItemFlags_NoReorder, NULL);
+}
+
+void    ImGui::TabItemSpacing(const char* str_id, ImGuiTabItemFlags flags, float width)
+{
+    ImGuiContext& g = *GImGui;
+    ImGuiWindow* window = g.CurrentWindow;
+    if (window->SkipItems)
+        return;
+
+    ImGuiTabBar* tab_bar = g.CurrentTabBar;
+    if (tab_bar == NULL)
+    {
+        IM_ASSERT_USER_ERROR(tab_bar != NULL, "Needs to be called between BeginTabBar() and EndTabBar()!");
+        return;
+    }
+    SetNextItemWidth(width);
+    TabItemEx(tab_bar, str_id, NULL, flags | ImGuiTabItemFlags_Button | ImGuiTabItemFlags_NoReorder | ImGuiTabItemFlags_Invisible, NULL);
 }
 
 bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, ImGuiTabItemFlags flags, ImGuiWindow* docked_window)
@@ -10116,8 +10138,11 @@ bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, 
     ImGuiButtonFlags button_flags = ((is_tab_button ? ImGuiButtonFlags_PressedOnClickRelease : ImGuiButtonFlags_PressedOnClick) | ImGuiButtonFlags_AllowOverlap);
     if (g.DragDropActive)
         button_flags |= ImGuiButtonFlags_PressedOnDragDropHold;
-    bool hovered, held;
-    bool pressed = ButtonBehavior(bb, id, &hovered, &held, button_flags);
+    bool hovered, held, pressed;
+    if (flags & ImGuiTabItemFlags_Invisible)
+        hovered = held = pressed = false;
+    else
+        pressed = ButtonBehavior(bb, id, &hovered, &held, button_flags);
     if (pressed && !is_tab_button)
         TabBarQueueFocus(tab_bar, tab);
 
@@ -10149,61 +10174,65 @@ bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, 
 #endif
 
     // Render tab shape
-    ImDrawList* display_draw_list = window->DrawList;
-    const ImU32 tab_col = GetColorU32((held || hovered) ? ImGuiCol_TabHovered : tab_contents_visible ? (tab_bar_focused ? ImGuiCol_TabSelected : ImGuiCol_TabDimmedSelected) : (tab_bar_focused ? ImGuiCol_Tab : ImGuiCol_TabDimmed));
-    TabItemBackground(display_draw_list, bb, flags, tab_col);
-    if (tab_contents_visible && (tab_bar->Flags & ImGuiTabBarFlags_DrawSelectedOverline) && style.TabBarOverlineSize > 0.0f)
+    const bool is_visible = (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_Visible) && !(flags & ImGuiTabItemFlags_Invisible);
+    if (is_visible)
     {
-        // Might be moved to TabItemBackground() ?
-        ImVec2 tl = bb.GetTL() + ImVec2(0, 1.0f * g.CurrentDpiScale);
-        ImVec2 tr = bb.GetTR() + ImVec2(0, 1.0f * g.CurrentDpiScale);
-        ImU32 overline_col = GetColorU32(tab_bar_focused ? ImGuiCol_TabSelectedOverline : ImGuiCol_TabDimmedSelectedOverline);
-        if (style.TabRounding > 0.0f)
+        ImDrawList* display_draw_list = window->DrawList;
+        const ImU32 tab_col = GetColorU32((held || hovered) ? ImGuiCol_TabHovered : tab_contents_visible ? (tab_bar_focused ? ImGuiCol_TabSelected : ImGuiCol_TabDimmedSelected) : (tab_bar_focused ? ImGuiCol_Tab : ImGuiCol_TabDimmed));
+        TabItemBackground(display_draw_list, bb, flags, tab_col);
+        if (tab_contents_visible && (tab_bar->Flags & ImGuiTabBarFlags_DrawSelectedOverline) && style.TabBarOverlineSize > 0.0f)
         {
-            float rounding = style.TabRounding;
-            display_draw_list->PathArcToFast(tl + ImVec2(+rounding, +rounding), rounding, 7, 9);
-            display_draw_list->PathArcToFast(tr + ImVec2(-rounding, +rounding), rounding, 9, 11);
-            display_draw_list->PathStroke(overline_col, 0, style.TabBarOverlineSize);
+            // Might be moved to TabItemBackground() ?
+            ImVec2 tl = bb.GetTL() + ImVec2(0, 1.0f * g.CurrentDpiScale);
+            ImVec2 tr = bb.GetTR() + ImVec2(0, 1.0f * g.CurrentDpiScale);
+            ImU32 overline_col = GetColorU32(tab_bar_focused ? ImGuiCol_TabSelectedOverline : ImGuiCol_TabDimmedSelectedOverline);
+            if (style.TabRounding > 0.0f)
+            {
+                float rounding = style.TabRounding;
+                display_draw_list->PathArcToFast(tl + ImVec2(+rounding, +rounding), rounding, 7, 9);
+                display_draw_list->PathArcToFast(tr + ImVec2(-rounding, +rounding), rounding, 9, 11);
+                display_draw_list->PathStroke(overline_col, 0, style.TabBarOverlineSize);
+            }
+            else
+            {
+                display_draw_list->AddLine(tl - ImVec2(0.5f, 0.5f), tr - ImVec2(0.5f, 0.5f), overline_col, style.TabBarOverlineSize);
+            }
         }
-        else
+        RenderNavCursor(bb, id);
+
+        // Select with right mouse button. This is so the common idiom for context menu automatically highlight the current widget.
+        const bool hovered_unblocked = IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+        if (tab_bar->SelectedTabId != tab->ID && hovered_unblocked && (IsMouseClicked(1) || IsMouseReleased(1)) && !is_tab_button)
+            TabBarQueueFocus(tab_bar, tab);
+
+        if (tab_bar->Flags & ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)
+            flags |= ImGuiTabItemFlags_NoCloseWithMiddleMouseButton;
+
+        // Render tab label, process close button
+        const ImGuiID close_button_id = p_open ? GetIDWithSeed("#CLOSE", NULL, id) : 0;
+        bool just_closed;
+        bool text_clipped;
+        TabItemLabelAndCloseButton(display_draw_list, bb, tab_just_unsaved ? (flags & ~ImGuiTabItemFlags_UnsavedDocument) : flags, tab_bar->FramePadding, label, id, close_button_id, tab_contents_visible, &just_closed, &text_clipped);
+        if (just_closed && p_open != NULL)
         {
-            display_draw_list->AddLine(tl - ImVec2(0.5f, 0.5f), tr - ImVec2(0.5f, 0.5f), overline_col, style.TabBarOverlineSize);
+            *p_open = false;
+            TabBarCloseTab(tab_bar, tab);
         }
-    }
-    RenderNavCursor(bb, id);
 
-    // Select with right mouse button. This is so the common idiom for context menu automatically highlight the current widget.
-    const bool hovered_unblocked = IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
-    if (tab_bar->SelectedTabId != tab->ID && hovered_unblocked && (IsMouseClicked(1) || IsMouseReleased(1)) && !is_tab_button)
-        TabBarQueueFocus(tab_bar, tab);
-
-    if (tab_bar->Flags & ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)
-        flags |= ImGuiTabItemFlags_NoCloseWithMiddleMouseButton;
-
-    // Render tab label, process close button
-    const ImGuiID close_button_id = p_open ? GetIDWithSeed("#CLOSE", NULL, id) : 0;
-    bool just_closed;
-    bool text_clipped;
-    TabItemLabelAndCloseButton(display_draw_list, bb, tab_just_unsaved ? (flags & ~ImGuiTabItemFlags_UnsavedDocument) : flags, tab_bar->FramePadding, label, id, close_button_id, tab_contents_visible, &just_closed, &text_clipped);
-    if (just_closed && p_open != NULL)
-    {
-        *p_open = false;
-        TabBarCloseTab(tab_bar, tab);
+        // Tooltip
+        // (Won't work over the close button because ItemOverlap systems messes up with HoveredIdTimer-> seems ok)
+        // (We test IsItemHovered() to discard e.g. when another item is active or drag and drop over the tab bar, which g.HoveredId ignores)
+        // FIXME: This is a mess.
+        // FIXME: We may want disabled tab to still display the tooltip?
+        if (text_clipped && g.HoveredId == id && !held)
+            if (!(tab_bar->Flags & ImGuiTabBarFlags_NoTooltip) && !(tab->Flags & ImGuiTabItemFlags_NoTooltip))
+                SetItemTooltip("%.*s", (int)(FindRenderedTextEnd(label) - label), label);
     }
 
     // Restore main window position so user can draw there
     if (want_clip_rect)
         PopClipRect();
     window->DC.CursorPos = backup_main_cursor_pos;
-
-    // Tooltip
-    // (Won't work over the close button because ItemOverlap systems messes up with HoveredIdTimer-> seems ok)
-    // (We test IsItemHovered() to discard e.g. when another item is active or drag and drop over the tab bar, which g.HoveredId ignores)
-    // FIXME: This is a mess.
-    // FIXME: We may want disabled tab to still display the tooltip?
-    if (text_clipped && g.HoveredId == id && !held)
-        if (!(tab_bar->Flags & ImGuiTabBarFlags_NoTooltip) && !(tab->Flags & ImGuiTabItemFlags_NoTooltip))
-            SetItemTooltip("%.*s", (int)(FindRenderedTextEnd(label) - label), label);
 
     IM_ASSERT(!is_tab_button || !(tab_bar->SelectedTabId == tab->ID && is_tab_button)); // TabItemButton should not be selected
     if (is_tab_button)
