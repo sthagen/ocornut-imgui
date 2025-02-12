@@ -42,6 +42,7 @@ HOW TO UPDATE?
 Breaking changes:
 
 - Renamed ImFontConfig::GlyphExtraSpacing.x option to GlyphExtraAdvanceX. (#242)
+- Renamed style.TabMinWidthForCloseButton to style.TabCloseButtonMinWidthUnselected.
 
 Other changes:
 
@@ -53,6 +54,7 @@ Other changes:
 - Windows, Style: Added style.WindowBorderHoverPadding setting to configure
   inner/outer padding applied to hit-testing of windows borders and detection
   of hovered window.
+- InputText: Allow CTRL+Shift+Z to redo even outside of OSX. (#8389) [@tanksdude]
 - InputTextWithHint(): Fixed buffer-overflow (luckily often with no visible effect)
   when a user callback modified the buffer contents in a way that altered the
   visibility of the preview/hint buffer. (#8368) [@m9710797, @ocornut]
@@ -62,6 +64,15 @@ Other changes:
   to not leak the value into a subsequent window. (#8196)
 - Tables: fixed an issue where Columns Visible/Hidden state wouldn't be correctly
   overridden when hot-reloading .ini state. (#7934)
+- Tables: tamed some .ini settings optimizations to more accurately allow
+  overwriting/hot-reloading settings in more situations. (#7934)
+- Styles, Tabs: made the Close Button of selected tabs always visible by default,
+  without requiring to hover the tab. (#8387)
+  - Added style.TabCloseButtonMinWidthSelected/TabCloseButtonMinWidthUnselected settings
+    to configure visibility of the Close Button for selected and unselected tabs.
+    (-1: always visible. 0.0f: visible when hovered. >0.0f: visible when hovered if minimum width)
+  - Default for selected tabs: TabCloseButtonMinWidthSelected = -1.0f (always visible)
+  - Default for unselected tabs: TabCloseButtonMinWidthUnselected = 0.0f (visible when hovered)
 - TextLinkOpenURL(): fixed default Win32 io.PlatformOpenInShellFn handler to
   handle UTF-8 regardless of system regional settings. (#7660) [@achabense]
 - Demo: Combos: demonstrate a very simple way to add a filter to a combo,
