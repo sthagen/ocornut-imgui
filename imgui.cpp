@@ -1212,6 +1212,7 @@ static void             UpdateWindowInFocusOrderList(ImGuiWindow* window, bool j
 // Navigation
 static void             NavUpdate();
 static void             NavUpdateWindowing();
+static void             NavUpdateWindowingApplyFocus(ImGuiWindow* window);
 static void             NavUpdateWindowingOverlay();
 static void             NavUpdateCancelRequest();
 static void             NavUpdateCreateMoveRequest();
@@ -3367,7 +3368,7 @@ void ImGui::PopStyleColor(int count)
     }
 }
 
-static const ImGuiDataVarInfo GStyleVarInfo[] =
+static const ImGuiDataVarInfo GStyleVarsInfo[] =
 {
     { ImGuiDataType_Float, 1, (ImU32)offsetof(ImGuiStyle, Alpha) },                     // ImGuiStyleVar_Alpha
     { ImGuiDataType_Float, 1, (ImU32)offsetof(ImGuiStyle, DisabledAlpha) },             // ImGuiStyleVar_DisabledAlpha
@@ -3407,15 +3408,15 @@ static const ImGuiDataVarInfo GStyleVarInfo[] =
 const ImGuiDataVarInfo* ImGui::GetStyleVarInfo(ImGuiStyleVar idx)
 {
     IM_ASSERT(idx >= 0 && idx < ImGuiStyleVar_COUNT);
-    IM_STATIC_ASSERT(IM_ARRAYSIZE(GStyleVarInfo) == ImGuiStyleVar_COUNT);
-    return &GStyleVarInfo[idx];
+    IM_STATIC_ASSERT(IM_ARRAYSIZE(GStyleVarsInfo) == ImGuiStyleVar_COUNT);
+    return &GStyleVarsInfo[idx];
 }
 
 void ImGui::PushStyleVar(ImGuiStyleVar idx, float val)
 {
     ImGuiContext& g = *GImGui;
     const ImGuiDataVarInfo* var_info = GetStyleVarInfo(idx);
-    if (var_info->Type != ImGuiDataType_Float || var_info->Count != 1)
+    if (var_info->DataType != ImGuiDataType_Float || var_info->Count != 1)
     {
         IM_ASSERT_USER_ERROR(0, "Calling PushStyleVar() variant with wrong type!");
         return;
@@ -3429,7 +3430,7 @@ void ImGui::PushStyleVarX(ImGuiStyleVar idx, float val_x)
 {
     ImGuiContext& g = *GImGui;
     const ImGuiDataVarInfo* var_info = GetStyleVarInfo(idx);
-    if (var_info->Type != ImGuiDataType_Float || var_info->Count != 2)
+    if (var_info->DataType != ImGuiDataType_Float || var_info->Count != 2)
     {
         IM_ASSERT_USER_ERROR(0, "Calling PushStyleVar() variant with wrong type!");
         return;
@@ -3443,7 +3444,7 @@ void ImGui::PushStyleVarY(ImGuiStyleVar idx, float val_y)
 {
     ImGuiContext& g = *GImGui;
     const ImGuiDataVarInfo* var_info = GetStyleVarInfo(idx);
-    if (var_info->Type != ImGuiDataType_Float || var_info->Count != 2)
+    if (var_info->DataType != ImGuiDataType_Float || var_info->Count != 2)
     {
         IM_ASSERT_USER_ERROR(0, "Calling PushStyleVar() variant with wrong type!");
         return;
@@ -3457,7 +3458,7 @@ void ImGui::PushStyleVar(ImGuiStyleVar idx, const ImVec2& val)
 {
     ImGuiContext& g = *GImGui;
     const ImGuiDataVarInfo* var_info = GetStyleVarInfo(idx);
-    if (var_info->Type != ImGuiDataType_Float || var_info->Count != 2)
+    if (var_info->DataType != ImGuiDataType_Float || var_info->Count != 2)
     {
         IM_ASSERT_USER_ERROR(0, "Calling PushStyleVar() variant with wrong type!");
         return;
@@ -3481,8 +3482,8 @@ void ImGui::PopStyleVar(int count)
         ImGuiStyleMod& backup = g.StyleVarStack.back();
         const ImGuiDataVarInfo* info = GetStyleVarInfo(backup.VarIdx);
         void* data = info->GetVarPtr(&g.Style);
-        if (info->Type == ImGuiDataType_Float && info->Count == 1)      { ((float*)data)[0] = backup.BackupFloat[0]; }
-        else if (info->Type == ImGuiDataType_Float && info->Count == 2) { ((float*)data)[0] = backup.BackupFloat[0]; ((float*)data)[1] = backup.BackupFloat[1]; }
+        if (info->DataType == ImGuiDataType_Float && info->Count == 1)      { ((float*)data)[0] = backup.BackupFloat[0]; }
+        else if (info->DataType == ImGuiDataType_Float && info->Count == 2) { ((float*)data)[0] = backup.BackupFloat[0]; ((float*)data)[1] = backup.BackupFloat[1]; }
         g.StyleVarStack.pop_back();
         count--;
     }
@@ -13651,6 +13652,33 @@ static void NavUpdateWindowingTarget(int focus_change_dir)
     g.NavWindowingToggleLayer = false;
 }
 
+// Apply focus and close overlay
+static void ImGui::NavUpdateWindowingApplyFocus(ImGuiWindow* apply_focus_window)
+{
+    ImGuiContext& g = *GImGui;
+    if (g.NavWindow == NULL || apply_focus_window != g.NavWindow->RootWindow)
+    {
+        ClearActiveID();
+        SetNavCursorVisibleAfterMove();
+        ClosePopupsOverWindow(apply_focus_window, false);
+        FocusWindow(apply_focus_window, ImGuiFocusRequestFlags_RestoreFocusedChild);
+        apply_focus_window = g.NavWindow;
+        if (apply_focus_window->NavLastIds[0] == 0)
+            NavInitWindow(apply_focus_window, false);
+
+        // If the window has ONLY a menu layer (no main layer), select it directly
+        // Use NavLayersActiveMaskNext since windows didn't have a chance to be Begin()-ed on this frame,
+        // so CTRL+Tab where the keys are only held for 1 frame will be able to use correct layers mask since
+        // the target window as already been previewed once.
+        // FIXME-NAV: This should be done in NavInit.. or in FocusWindow... However in both of those cases,
+        // we won't have a guarantee that windows has been visible before and therefore NavLayersActiveMask*
+        // won't be valid.
+        if (apply_focus_window->DC.NavLayersActiveMaskNext == (1 << ImGuiNavLayer_Menu))
+            g.NavLayer = ImGuiNavLayer_Menu;
+    }
+    g.NavWindowingTarget = NULL;
+}
+
 // Windowing management mode
 // Keyboard: CTRL+Tab (change focus/move/resize), Alt (toggle menu layer)
 // Gamepad:  Hold Menu/Square (change focus/move/resize), Tap Menu/Square (toggle menu layer)
@@ -13802,28 +13830,8 @@ static void ImGui::NavUpdateWindowing()
     }
 
     // Apply final focus
-    if (apply_focus_window && (g.NavWindow == NULL || apply_focus_window != g.NavWindow->RootWindow))
-    {
-        ClearActiveID();
-        SetNavCursorVisibleAfterMove();
-        ClosePopupsOverWindow(apply_focus_window, false);
-        FocusWindow(apply_focus_window, ImGuiFocusRequestFlags_RestoreFocusedChild);
-        apply_focus_window = g.NavWindow;
-        if (apply_focus_window->NavLastIds[0] == 0)
-            NavInitWindow(apply_focus_window, false);
-
-        // If the window has ONLY a menu layer (no main layer), select it directly
-        // Use NavLayersActiveMaskNext since windows didn't have a chance to be Begin()-ed on this frame,
-        // so CTRL+Tab where the keys are only held for 1 frame will be able to use correct layers mask since
-        // the target window as already been previewed once.
-        // FIXME-NAV: This should be done in NavInit.. or in FocusWindow... However in both of those cases,
-        // we won't have a guarantee that windows has been visible before and therefore NavLayersActiveMask*
-        // won't be valid.
-        if (apply_focus_window->DC.NavLayersActiveMaskNext == (1 << ImGuiNavLayer_Menu))
-            g.NavLayer = ImGuiNavLayer_Menu;
-    }
     if (apply_focus_window)
-        g.NavWindowingTarget = NULL;
+        NavUpdateWindowingApplyFocus(apply_focus_window);
 
     // Apply menu/layer toggle
     if (apply_toggle_layer && g.NavWindow)
