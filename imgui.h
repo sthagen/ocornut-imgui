@@ -1,4 +1,4 @@
-// dear imgui, v1.91.9 WIP
+// dear imgui, v1.91.9
 // (headers)
 
 // Help:
@@ -28,8 +28,8 @@
 
 // Library Version
 // (Integer encoded as XYYZZ for use in #if preprocessor conditionals, e.g. '#if IMGUI_VERSION_NUM >= 12345')
-#define IMGUI_VERSION       "1.91.9 WIP"
-#define IMGUI_VERSION_NUM   19188
+#define IMGUI_VERSION       "1.91.9"
+#define IMGUI_VERSION_NUM   19190
 #define IMGUI_HAS_TABLE
 
 /*
@@ -1494,8 +1494,6 @@ enum ImGuiKey : int
     ImGuiKey_AppBack,               // Available on some keyboard/mouses. Often referred as "Browser Back"
     ImGuiKey_AppForward,
     ImGuiKey_Oem102,                // Non-US backslash.
-    ImGuiKey_AbntC1,                // Brazil ABNT extra keys
-    ImGuiKey_AbntC2,
 
     // Gamepad (some of those are analog values, 0.0f to 1.0f)                          // NAVIGATION ACTION
     // (download controller mapping PNG/PSD at http://dearimgui.com/controls_sheets)
