@@ -43,8 +43,10 @@ Breaking changes:
 
 Other changes:
 
-- Error Handling: added better error report and recovery for extraneous 
+- Error Handling: added better error report and recovery for extraneous
   EndPopup() call. (#1651, #8499)
+- Style, InputText: added ImGuiCol_InputTextCursor to configure color of
+  the InputText cursor/caret. (#7031)
 
 
 -----------------------------------------------------------------------
