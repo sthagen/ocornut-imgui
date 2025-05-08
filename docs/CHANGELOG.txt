@@ -116,9 +116,17 @@ Other changes:
 - Backends: SDLGPU3: Made ImGui_ImplSDLGPU3_PrepareDrawData() reuse GPU Transfer Buffers which
   were unusually slow to recreate every frame. Much faster now. (#8534) [@ocornut, @TheMode]
 - Backends: SDLGPU3: added support for ImDrawCallback_ResetRenderState. (#8599)
+- Backends: DirectX10, DirectX11, DirectX12: Honor FramebufferScale to allow for custom
+  platform backends and experiments using it (consistently with other renderer backends,
+  even though in normal condition it is not set under Windows). (#8412) [@WSSDude]
 - Backends: Vulkan: Deep-copy ImGui_ImplVulkan_InitInfo::PipelineRenderingCreateInfo's
   pColorAttachmentFormats buffer when set, in order to reduce common user-error of
   specifying a pointer to data that gets out of scope. (#8282)
+- Backends: Vulkan: Load dynamic rendering functions using vkGetDeviceProcAddr()
+  + try both non-KHR and KHR versions. (#8600, #8326, #8365) [@ChrisTom-94]
+- Backends: Vulkan: fixed validation errors in window create/resize helpers used by examples
+  and by multi-viewports implementation, which would typically trigger errors while detaching
+  secondary viewports. (#8600, #8176) [@ChrisTom-94]
 - Examples: DirectX12+Win32: also test for IsIconic() for sleeping since we don't seem to
   get a DXGI_STATUS_OCCLUDED signal when minimized. (#8603) [@dooann]
 
