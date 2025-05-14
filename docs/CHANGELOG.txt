@@ -76,6 +76,8 @@ Other changes:
     - The feature is unlikely to ever work properly when using a coarse clipper
       such as ImGuiListClipper.
 - TreeNode: fixed incorrect clipping of arrow/bullet when using ImGuiTreeNodeFlags_SpanAllColumns.
+- InputText: fixed cursor positioning issue using up/down keys near end of lines while
+  editing non-ASCII text. (Regression from 1.91.2) (#8635, #7925)
 - Tables: fixed TableHeader() eager vertical clipping of text which may be noticeable
   with FramePadding.y was too small. (#6236)
 - Tables: fixed an assert when combining Tables, Frozen Rows, Clipper and BeginMultiSelect()
@@ -128,6 +130,7 @@ Other changes:
 - Backends: Vulkan: fixed validation errors in window create/resize helpers used by examples
   and by multi-viewports implementation, which would typically trigger errors while detaching
   secondary viewports. (#8600, #8176) [@ChrisTom-94]
+- Examples: Apple+Metal, Apple+OpenGL: add Makefile (CLion opens them nicely). (#8637) [@pthom]
 - Examples: DirectX12+Win32: also test for IsIconic() for sleeping since we don't seem to
   get a DXGI_STATUS_OCCLUDED signal when minimized. (#8603) [@dooann]
 
