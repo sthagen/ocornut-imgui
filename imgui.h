@@ -559,13 +559,14 @@ namespace ImGui
     IMGUI_API void          ProgressBar(float fraction, const ImVec2& size_arg = ImVec2(-FLT_MIN, 0), const char* overlay = NULL);
     IMGUI_API void          Bullet();                                                       // draw a small circle + keep the cursor on the same line. advance cursor x position by GetTreeNodeToLabelSpacing(), same distance that TreeNode() uses
     IMGUI_API bool          TextLink(const char* label);                                    // hyperlink text button, return true when clicked
-    IMGUI_API void          TextLinkOpenURL(const char* label, const char* url = NULL);     // hyperlink text button, automatically open file/url when clicked
+    IMGUI_API bool          TextLinkOpenURL(const char* label, const char* url = NULL);     // hyperlink text button, automatically open file/url when clicked
 
     // Widgets: Images
     // - Read about ImTextureID here: https://github.com/ocornut/imgui/wiki/Image-Loading-and-Displaying-Examples
     // - 'uv0' and 'uv1' are texture coordinates. Read about them from the same link above.
     // - Image() pads adds style.ImageBorderSize on each side, ImageButton() adds style.FramePadding on each side.
     // - ImageButton() draws a background based on regular Button() color + optionally an inner background if specified.
+    // - An obsolete version of Image(), before 1.91.9 (March 2025), had a 'tint_col' parameter which is now supported by the ImageWithBg() function.
     IMGUI_API void          Image(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1));
     IMGUI_API void          ImageWithBg(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& bg_col = ImVec4(0, 0, 0, 0), const ImVec4& tint_col = ImVec4(1, 1, 1, 1));
     IMGUI_API bool          ImageButton(const char* str_id, ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& bg_col = ImVec4(0, 0, 0, 0), const ImVec4& tint_col = ImVec4(1, 1, 1, 1));
@@ -3649,7 +3650,7 @@ struct ImGuiPlatformImeData
 namespace ImGui
 {
     // OBSOLETED in 1.91.9 (from February 2025)
-    IMGUI_API void      Image(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col); // <-- border_col was removed in favor of ImGuiCol_ImageBorder.
+    IMGUI_API void      Image(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col); // <-- 'border_col' was removed in favor of ImGuiCol_ImageBorder. If you use 'tint_col', use ImageWithBg() instead.
     // OBSOLETED in 1.91.0 (from July 2024)
     static inline void  PushButtonRepeat(bool repeat)                           { PushItemFlag(ImGuiItemFlags_ButtonRepeat, repeat); }
     static inline void  PopButtonRepeat()                                       { PopItemFlag(); }
