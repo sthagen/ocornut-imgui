@@ -21,9 +21,10 @@
 // - Issues & support ........... https://github.com/ocornut/imgui/issues
 // - Test Engine & Automation ... https://github.com/ocornut/imgui_test_engine (test suite, test engine to automate your apps)
 
-// For first-time users having issues compiling/linking/running/loading fonts:
+// For first-time users having issues compiling/linking/running:
 // please post in https://github.com/ocornut/imgui/discussions if you cannot find a solution in resources above.
 // Everything else should be asked in 'Issues'! We are building a database of cross-linked knowledge there.
+// Since 1.92, we encourage font loading question to also be posted in 'Issues'.
 
 // Copyright (c) 2014-2025 Omar Cornut
 // Developed by Omar Cornut and every direct or indirect contributors to the GitHub.
@@ -347,12 +348,12 @@ CODE
         ImGui::Render();
 
         // Update textures
-        for (ImTextureData* tex : ImGui::GetPlatformIO().Textures)
+        ImDrawData* draw_data = ImGui::GetDrawData();
+        for (ImTextureData* tex : *draw_data->Textures)
             if (tex->Status != ImTextureStatus_OK)
                 MyImGuiBackend_UpdateTexture(tex);
 
         // Render dear imgui contents, swap buffers
-        ImDrawData* draw_data = ImGui::GetDrawData();
         MyImGuiBackend_RenderDrawData(draw_data);
         SwapBuffers();
      }
@@ -372,25 +373,32 @@ CODE
     {
         if (tex->Status == ImTextureStatus_WantCreate)
         {
-            // create texture based on tex->Width/Height/Pixels
-            // call tex->SetTexID() to specify backend-specific identifiers
-            // tex->Status = ImTextureStatus_OK;
+            // <create texture based on tex->Width/Height/Pixels>
+            tex->SetTexID(xxxx); // specify backend-specific ImTextureID identifier
+            tex->SetStatus(ImTextureStatus_OK);
+            tex->BackendUserData = xxxx; // store more backend data
         }
         if (tex->Status == ImTextureStatus_WantUpdates)
         {
-            // update texture blocks based on tex->UpdateRect
-            // tex->Status = ImTextureStatus_OK;
+            // <update texture blocks based on tex->UpdateRect>
+            tex->SetStatus(ImTextureStatus_OK);
         }
         if (tex->Status == ImTextureStatus_WantDestroy)
         {
-            // destroy texture
-            // call tex->SetTexID(ImTextureID_Invalid)
-            // tex->Status = ImTextureStatus_Destroyed;
+            // <destroy texture>
+            tex->SetTexID(ImTextureID_Invalid);
+            tex->SetStatus(ImTextureStatus_Destroyed);
         }
     }
 
     void MyImGuiBackend_RenderDrawData(ImDrawData* draw_data)
     {
+       if (draw_data->Textures != nullptr)
+           for (ImTextureData* tex : *draw_data->Textures)
+               if (tex->Status != ImTextureStatus_OK)
+                   MyImGuiBackend_UpdateTexture(tex);
+
+
        // TODO: Setup render state: alpha-blending enabled, no face culling, no depth testing, scissor enabled
        // TODO: Setup texture sampling state: sample with bilinear filtering (NOT point/nearest filtering). Use 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines;' to allow point/nearest filtering.
        // TODO: Setup viewport covering draw_data->DisplayPos to draw_data->DisplayPos + draw_data->DisplaySize
@@ -407,7 +415,10 @@ CODE
              const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
              if (pcmd->UserCallback)
              {
-                 pcmd->UserCallback(cmd_list, pcmd);
+                 if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
+                     MyEngineResetRenderState();
+                 else
+                     pcmd->UserCallback(cmd_list, pcmd);
              }
              else
              {
@@ -470,7 +481,7 @@ CODE
                        - Fonts: ImFontConfig::OversampleH/OversampleV default to automatic (== 0) since v1.91.8. It is quite important you keep it automatic until we decide if we want to provide a way to express finer policy, otherwise you will likely waste texture space when using large glyphs. Note that the imgui_freetype backend doesn't use and does not need oversampling.
                        - Fonts: specifying glyph ranges is now unnecessary. The value of ImFontConfig::GlyphRanges[] is only useful for legacy backends. All GetGlyphRangesXXXX() functions are now marked obsolete: GetGlyphRangesDefault(), GetGlyphRangesGreek(), GetGlyphRangesKorean(), GetGlyphRangesJapanese(), GetGlyphRangesChineseSimplifiedCommon(), GetGlyphRangesChineseFull(), GetGlyphRangesCyrillic(), GetGlyphRangesThai(), GetGlyphRangesVietnamese().
                        - Fonts: removed ImFontAtlas::TexDesiredWidth to enforce a texture width. (#327)
-                       - Fonts: if you create and manage ImFontAtlas instances yourself (instead of relying on ImGuiContext to create one, you'll need to set the atlas->RendererHasTextures field and call ImFontAtlasUpdateNewFrame() yourself. An assert will trigger if you don't.
+                       - Fonts: if you create and manage ImFontAtlas instances yourself (instead of relying on ImGuiContext to create one, you'll need to call ImFontAtlasUpdateNewFrame() yourself. An assert will trigger if you don't.
                        - Fonts: obsolete ImGui::SetWindowFontScale() which is not useful anymore. Prefer using 'PushFontSize(style.FontSizeBase * factor)' or to manipulate other scaling factors.
                        - Fonts: obsoleted ImFont::Scale which is not useful anymore.
                        - Fonts: generally reworked Internals of ImFontAtlas and ImFont. While in theory a vast majority of users shouldn't be affected, some use cases or extensions might be. Among other things:
@@ -5286,13 +5297,12 @@ static void ImGui::UpdateTexturesNewFrame()
     {
         if (atlas->OwnerContext == &g)
         {
-            atlas->RendererHasTextures = has_textures;
-            ImFontAtlasUpdateNewFrame(atlas, g.FrameCount);
+            ImFontAtlasUpdateNewFrame(atlas, g.FrameCount, has_textures);
         }
         else
         {
             IM_ASSERT(atlas->Builder != NULL && atlas->Builder->FrameCount != -1 && "If you manage font atlases yourself you need to call ImFontAtlasUpdateNewFrame() on it.");
-            IM_ASSERT(atlas->RendererHasTextures == has_textures && "If you manage font atlases yourself make sure atlas->RendererHasTextures is set consistently with all contexts using it.");
+            IM_ASSERT(atlas->RendererHasTextures == has_textures && "If you manage font atlases yourself make sure ImGuiBackendFlags_RendererHasTextures is set consistently with atlas->RendererHasTextures as specified in the ImFontAtlasUpdateNewFrame() call.");
         }
     }
 }
@@ -15921,7 +15931,7 @@ void ImGui::ShowFontAtlas(ImFontAtlas* atlas)
         if (loader_current == loader_freetype)
         {
             unsigned int loader_flags = atlas->FontLoaderFlags;
-            Text("Shared FreeType Loader Flags:  0x%08", loader_flags);
+            Text("Shared FreeType Loader Flags:  0x%08X", loader_flags);
             if (ImGuiFreeType::DebugEditFontLoaderFlags(&loader_flags))
             {
                 for (ImFont* font : atlas->Fonts)
@@ -17725,6 +17735,40 @@ void ImGui::DebugStartItemPicker() {}
 void ImGui::DebugHookIdInfo(ImGuiID, ImGuiDataType, const void*, const void*) {}
 
 #endif // #ifndef IMGUI_DISABLE_DEBUG_TOOLS
+
+#if !defined(IMGUI_DISABLE_DEMO_WINDOWS) || !defined(IMGUI_DISABLE_DEBUG_TOOLS)
+// Demo helper function to select among loaded fonts.
+// Here we use the regular BeginCombo()/EndCombo() api which is the more flexible one.
+void ImGui::ShowFontSelector(const char* label)
+{
+    ImGuiIO& io = GetIO();
+    ImFont* font_current = GetFont();
+    if (BeginCombo(label, font_current->GetDebugName()))
+    {
+        for (ImFont* font : io.Fonts->Fonts)
+        {
+            PushID((void*)font);
+            if (Selectable(font->GetDebugName(), font == font_current))
+                io.FontDefault = font;
+            if (font == font_current)
+                SetItemDefaultFocus();
+            PopID();
+        }
+        EndCombo();
+    }
+    SameLine();
+    if (io.BackendFlags & ImGuiBackendFlags_RendererHasTextures)
+        MetricsHelpMarker(
+            "- Load additional fonts with io.Fonts->AddFontXXX() functions.\n"
+            "- Read FAQ and docs/FONTS.md for more details.");
+    else
+        MetricsHelpMarker(
+            "- Load additional fonts with io.Fonts->AddFontXXX() functions.\n"
+            "- The font atlas is built when calling io.Fonts->GetTexDataAsXXXX() or io.Fonts->Build().\n"
+            "- Read FAQ and docs/FONTS.md for more details.\n"
+            "- If you need to add/remove fonts at runtime (e.g. for DPI change), do it before calling NewFrame().");
+}
+#endif // #if !defined(IMGUI_DISABLE_DEMO_WINDOWS) || !defined(IMGUI_DISABLE_DEBUG_TOOLS)
 
 //-----------------------------------------------------------------------------
 
