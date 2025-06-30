@@ -453,7 +453,8 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
                        - Fonts: (users of imgui_freetype): renamed ImFontAtlas::FontBuilderFlags to ImFontAtlas::FontLoaderFlags. Renamed ImFontConfig::FontBuilderFlags to ImFontConfig::FontLoaderFlags. Renamed ImGuiFreeTypeBuilderFlags to ImGuiFreeTypeLoaderFlags.
                          If you used runtime imgui_freetype selection rather than the default IMGUI_ENABLE_FREETYPE compile-time option: Renamed/reworked ImFontBuilderIO into ImFontLoader. Renamed ImGuiFreeType::GetBuilderForFreeType() to ImGuiFreeType::GetFontLoader().
                            - old:  io.Fonts->FontBuilderIO = ImGuiFreeType::GetBuilderForFreeType()
-                           - new:  io.Fonts.FontLoader = ImGuiFreeType::GetFontLoader()
+                           - new:  io.Fonts->FontLoader = ImGuiFreeType::GetFontLoader()
+                           - new:  io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader()) to change dynamically at runtime [from 1.92.1]
                        - Fonts: (users of custom rectangles, see #8466): Renamed AddCustomRectRegular() to AddCustomRect(). Added GetCustomRect() as a replacement for GetCustomRectByIndex() + CalcCustomRectUV().
                            - The output type of GetCustomRect() is now ImFontAtlasRect, which include UV coordinates. X->x, Y->y, Width->w, Height->h.
                            - old:
@@ -8823,7 +8824,7 @@ void ImGui::UpdateCurrentFontSize(float restore_font_size_after_scaling)
     // - We started rounding in 1.90 WIP (18991) as our layout system currently doesn't support non-rounded font size well yet.
     // - We may support it better later and remove this rounding.
     final_size = GetRoundedFontSize(final_size);
-    final_size = ImMax(1.0f, final_size);
+    final_size = ImClamp(final_size, 1.0f, IMGUI_FONT_SIZE_MAX);
     if (g.Font != NULL && (g.IO.BackendFlags & ImGuiBackendFlags_RendererHasTextures))
         g.Font->CurrentRasterizerDensity = g.FontRasterizerDensity;
     g.FontSize = final_size;
@@ -15870,9 +15871,9 @@ void ImGui::ShowFontAtlas(ImFontAtlas* atlas)
         style._NextFrameFontSizeBase = style.FontSizeBase; // FIXME: Temporary hack until we finish remaining work.
     SameLine(0.0f, 0.0f); Text(" (out %.2f)", GetFontSize());
     SameLine(); MetricsHelpMarker("- This is scaling font only. General scaling will come later.");
-    DragFloat("FontScaleMain", &style.FontScaleMain, 0.02f, 0.5f, 5.0f);
+    DragFloat("FontScaleMain", &style.FontScaleMain, 0.02f, 0.5f, 4.0f);
     //BeginDisabled(io.ConfigDpiScaleFonts);
-    DragFloat("FontScaleDpi", &style.FontScaleDpi, 0.02f, 0.5f, 5.0f);
+    DragFloat("FontScaleDpi", &style.FontScaleDpi, 0.02f, 0.5f, 4.0f);
     //SetItemTooltip("When io.ConfigDpiScaleFonts is set, this value is automatically overwritten.");
     //EndDisabled();
     if ((io.BackendFlags & ImGuiBackendFlags_RendererHasTextures) == 0)
@@ -15902,7 +15903,7 @@ void ImGui::ShowFontAtlas(ImFontAtlas* atlas)
 #ifdef IMGUI_ENABLE_STB_TRUETYPE
         const ImFontLoader* loader_stbtruetype = ImFontAtlasGetFontLoaderForStbTruetype();
         if (RadioButton("stb_truetype", loader_current == loader_stbtruetype))
-            ImFontAtlasBuildSetupFontLoader(atlas, loader_stbtruetype);
+            atlas->SetFontLoader(loader_stbtruetype);
 #else
         BeginDisabled();
         RadioButton("stb_truetype", false);
@@ -15913,7 +15914,7 @@ void ImGui::ShowFontAtlas(ImFontAtlas* atlas)
 #ifdef IMGUI_ENABLE_FREETYPE
         const ImFontLoader* loader_freetype = ImGuiFreeType::GetFontLoader();
         if (RadioButton("FreeType", loader_current == loader_freetype))
-            ImFontAtlasBuildSetupFontLoader(atlas, loader_freetype);
+            atlas->SetFontLoader(loader_freetype);
         if (loader_current == loader_freetype)
         {
             unsigned int loader_flags = atlas->FontLoaderFlags;
