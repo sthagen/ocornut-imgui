@@ -36,12 +36,12 @@ HOW TO UPDATE?
 - Please report any issue!
 
 -----------------------------------------------------------------------
- VERSION 1.92.1 WIP (In Progress)
+ VERSION 1.92.1 (Released 2025-07-09)
 -----------------------------------------------------------------------
 
-Breaking changes:
+Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v1.92.1
 
-Other changes:
+Changes:
 
 - Fonts: added ImFontAtlas::SetFontLoader() to dynamically change font
   loader at runtime without using internal API. (#8752, #8465)
@@ -61,8 +61,17 @@ Other changes:
 - Demo: Added "Text -> Font Size" demo section. (#8738) [@Demonese]
 - CI: Fixed dllimport/dllexport tests. (#8757) [@AidanSun05]
 - CI: Updated to use latest Windows image + VS2022.
+- Debug Tools: added IMGUI_DEBUG_HIGHLIGHT_ALL_ID_CONFLICTS to detect
+  id conflicts _before_ hovering. This is very slow and should only be used
+  temporarily. (#8651, #7961, #7669)
+- Examples: GLFW+OpenGL3, GLFW+WGPU: Emscripten Makefiles uses GLFW port 
+  'contrib.glfw3' which offers better HiDPI support. (#8742) [@pthom]
+- Backends: GLFW, SDL2 made ImGui_ImplGLFW_GetContentScaleXXX() and 
+  ImGui_ImplSDL2_GetContentScaleXXXX() helpers return 1.0f on Emscripten 
+  and Android platforms, matching macOS logic. (#8742, #8733) [@pthom]
 - Backends: SDL3: avoid calling SDL_StartTextInput() again if already active.
-  (#8727) [@morrazzzz]
+  (fixes e.g.: an issue on iOS where the keyboard animation will popup every 
+  time the user types a key + probably other things) (#8727) [@morrazzzz]
 - Backends: OSX: added ImGuiMouseCursor_Wait and ImGuiMouseCursor_Progress
   mouse cursor support. (#8739) [@cfillion]
 - Backends: Allegro5: fixed texture update broken on some platforms where
@@ -77,7 +86,7 @@ Other changes:
  VERSION 1.92.0 (Released 2025-06-25)
 -----------------------------------------------------------------------
 
-Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v1.92
+Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v1.92.0
 
 THIS VERSION CONTAINS THE LARGEST AMOUNT OF BREAKING CHANGES SINCE 2015!
 I TRIED REALLY HARD TO KEEP THEM TO A MINIMUM, REDUCE THE AMOUNT OF INTERFERENCE,
@@ -168,6 +177,8 @@ Breaking changes:
   and IsBuilt() functions. The new protocol for backends to handle textures doesn't need them.
   Kept redirection functions (will obsolete).
    - A majority of old backends should still work with new code (behaving like they did before).
+   - For instructions to upgrade your custom backend:
+     https://github.com/ocornut/imgui/blob/master/docs/BACKENDS.md
    - Calling ImFontAtlas::Build() before initializing new backends will erroneously trigger
      preloading all glyphs. Will be detected with an assertion after the backend is initialized.
 - Fonts: ImFontConfig::OversampleH/OversampleV default to automatic (== 0)
