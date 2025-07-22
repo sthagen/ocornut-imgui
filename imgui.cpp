@@ -2582,11 +2582,11 @@ static inline int ImTextCharToUtf8_inline(char* buf, int buf_size, unsigned int 
     return 0;
 }
 
-const char* ImTextCharToUtf8(char out_buf[5], unsigned int c)
+int ImTextCharToUtf8(char out_buf[5], unsigned int c)
 {
     int count = ImTextCharToUtf8_inline(out_buf, 5, c);
     out_buf[count] = 0;
-    return out_buf;
+    return count;
 }
 
 // Not optimal but we very rarely use this function.
@@ -7578,12 +7578,19 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         }
 #endif
 
+        // Decide if we are going to handle borders and resize grips
+        // 'window->SkipItems' is not updated yet so for child windows we rely on ParentWindow to avoid submitting decorations. (#8815)
+        // Whenever we add support for full decorated child windows we will likely make this logic more general.
+        bool handle_borders_and_resize_grips = true;
+        if ((flags & ImGuiWindowFlags_ChildWindow) && window->ParentWindow->SkipItems)
+            handle_borders_and_resize_grips = false;
+
         // Handle manual resize: Resize Grips, Borders, Gamepad
         int border_hovered = -1, border_held = -1;
         ImU32 resize_grip_col[4] = {};
         const int resize_grip_count = ((flags & ImGuiWindowFlags_ChildWindow) && !(flags & ImGuiWindowFlags_Popup)) ? 0 : g.IO.ConfigWindowsResizeFromEdges ? 2 : 1; // Allow resize from lower-left if we have the mouse cursor feedback for it.
         const float resize_grip_draw_size = IM_TRUNC(ImMax(g.FontSize * 1.10f, window->WindowRounding + 1.0f + g.FontSize * 0.2f));
-        if (!window->Collapsed)
+        if (handle_borders_and_resize_grips && !window->Collapsed)
             if (int auto_fit_mask = UpdateWindowManualResize(window, size_auto_fit, &border_hovered, &border_held, resize_grip_count, &resize_grip_col[0], visibility_rect))
             {
                 if (auto_fit_mask & (1 << ImGuiAxis_X))
@@ -7720,7 +7727,6 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
             // Handle title bar, scrollbar, resize grips and resize borders
             const ImGuiWindow* window_to_highlight = g.NavWindowingTarget ? g.NavWindowingTarget : g.NavWindow;
             const bool title_bar_is_highlight = want_focus || (window_to_highlight && window->RootWindowForTitleBarHighlight == window_to_highlight->RootWindowForTitleBarHighlight);
-            const bool handle_borders_and_resize_grips = true; // This exists to facilitate merge with 'docking' branch.
             RenderWindowDecorations(window, title_bar_rect, title_bar_is_highlight, handle_borders_and_resize_grips, resize_grip_count, resize_grip_col, resize_grip_draw_size);
 
             if (render_decorations_in_parent)
@@ -16922,8 +16928,10 @@ void ImGui::DebugNodeFont(ImFont* font)
 #endif
 
     char c_str[5];
-    Text("Fallback character: '%s' (U+%04X)", ImTextCharToUtf8(c_str, font->FallbackChar), font->FallbackChar);
-    Text("Ellipsis character: '%s' (U+%04X)", ImTextCharToUtf8(c_str, font->EllipsisChar), font->EllipsisChar);
+    ImTextCharToUtf8(c_str, font->FallbackChar);
+    Text("Fallback character: '%s' (U+%04X)", c_str, font->FallbackChar);
+    ImTextCharToUtf8(c_str, font->EllipsisChar);
+    Text("Ellipsis character: '%s' (U+%04X)", c_str, font->EllipsisChar);
 
     for (int src_n = 0; src_n < font->Sources.Size; src_n++)
     {
@@ -16965,7 +16973,10 @@ void ImGui::DebugNodeFont(ImFont* font)
                     {
                         char utf8_buf[5];
                         for (unsigned int n = c; n < c_end; n++)
-                            BulletText("Codepoint U+%04X (%s)", n, ImTextCharToUtf8(utf8_buf, n));
+                        {
+                            ImTextCharToUtf8(utf8_buf, n);
+                            BulletText("Codepoint U+%04X (%s)", n, utf8_buf);
+                        }
                         TreePop();
                     }
                     TableNextColumn();
