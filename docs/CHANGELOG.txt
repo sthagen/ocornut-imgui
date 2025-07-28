@@ -59,6 +59,8 @@ Other Changes:
   to facilitate multiple init/shutdown cycles in same process. (#8792) [@tim-rex]
 - Backends: OpenGL2, OpenGL3: set GL_UNPACK_ALIGNMENT to 1 before updating 
   textures. (#8802) [@Daandelange]
+- Backends: Vulkan: Fixed texture update corruption introduced in 1.92.0,
+  affecting some drivers/setups. (#8801, #8755, #8840) [@Retro52, @Miolith]
 
 
 -----------------------------------------------------------------------
@@ -188,6 +190,10 @@ Breaking changes:
     - You can use `Metrics/Debugger->Fonts->Font->Input Glyphs Overlap Detection Tool` to
       see list of glyphs available in multiple font sources. This can facilitate understanding
       which font input is providing which glyph.
+- Fonts: **IMPORTANT** on Thread Safety:
+  - A few functions such as font->CalcTextSizeA() were by sheer luck (== accidentally) 
+    thread-safe even thou we had never provided that guarantee before. They are
+    definitively not thread-safe anymore as new glyphs may be loaded.
 
 - Textures:
   - All API functions taking a 'ImTextureID' parameter are now taking a 'ImTextureRef':

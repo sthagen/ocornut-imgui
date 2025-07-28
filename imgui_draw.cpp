@@ -4417,7 +4417,7 @@ static ImFontGlyph* ImFontBaked_BuildLoadGlyph(ImFontBaked* baked, ImWchar codep
     if (atlas->Locked || (font->Flags & ImFontFlags_NoLoadGlyphs))
     {
         // Lazily load fallback glyph
-        if (baked->FallbackGlyphIndex == -1 && baked->LockLoadingFallback == 0)
+        if (baked->FallbackGlyphIndex == -1 && baked->LoadNoFallback == 0)
             ImFontAtlasBuildSetupFontBakedFallback(baked);
         return NULL;
     }
@@ -4469,7 +4469,7 @@ static ImFontGlyph* ImFontBaked_BuildLoadGlyph(ImFontBaked* baked, ImWchar codep
     }
 
     // Lazily load fallback glyph
-    if (baked->LockLoadingFallback)
+    if (baked->LoadNoFallback)
         return NULL;
     if (baked->FallbackGlyphIndex == -1)
         ImFontAtlasBuildSetupFontBakedFallback(baked);
@@ -4483,7 +4483,7 @@ static ImFontGlyph* ImFontBaked_BuildLoadGlyph(ImFontBaked* baked, ImWchar codep
 
 static float ImFontBaked_BuildLoadGlyphAdvanceX(ImFontBaked* baked, ImWchar codepoint)
 {
-    if (baked->Size >= IMGUI_FONT_SIZE_THRESHOLD_FOR_LOADADVANCEXONLYMODE)
+    if (baked->Size >= IMGUI_FONT_SIZE_THRESHOLD_FOR_LOADADVANCEXONLYMODE || baked->LoadNoRenderOnLayout)
     {
         // First load AdvanceX value used by CalcTextSize() API then load the rest when loaded by drawing API.
         float only_advance_x = 0.0f;
@@ -5222,9 +5222,9 @@ ImFontGlyph* ImFontBaked::FindGlyphNoFallback(ImWchar c)
         if (i != IM_FONTGLYPH_INDEX_UNUSED)
             return &Glyphs.Data[i];
     }
-    LockLoadingFallback = true; // This is actually a rare call, not done in hot-loop, so we prioritize not adding extra cruft to ImFontBaked_BuildLoadGlyph() call sites.
+    LoadNoFallback = true; // This is actually a rare call, not done in hot-loop, so we prioritize not adding extra cruft to ImFontBaked_BuildLoadGlyph() call sites.
     ImFontGlyph* glyph = ImFontBaked_BuildLoadGlyph(this, c, NULL);
-    LockLoadingFallback = false;
+    LoadNoFallback = false;
     return glyph;
 }
 
