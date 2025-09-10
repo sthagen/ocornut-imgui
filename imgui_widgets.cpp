@@ -2032,7 +2032,8 @@ bool ImGui::BeginComboPopup(ImGuiID popup_id, const ImRect& bb, ImGuiComboFlags 
     if (!ret)
     {
         EndPopup();
-        IM_ASSERT(0);   // This should never happen as we tested for IsPopupOpen() above
+        if (!g.IO.ConfigDebugBeginReturnValueOnce && !g.IO.ConfigDebugBeginReturnValueLoop) // Begin may only return false with those debug tools activated.
+            IM_ASSERT(0); // This should never happen as we tested for IsPopupOpen() above
         return false;
     }
     g.BeginComboDepth++;
@@ -3992,7 +3993,7 @@ static ImVec2 InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, c
 namespace ImStb
 {
 static int     STB_TEXTEDIT_STRINGLEN(const ImGuiInputTextState* obj)                             { return obj->TextLen; }
-static char    STB_TEXTEDIT_GETCHAR(const ImGuiInputTextState* obj, int idx)                      { IM_ASSERT(idx <= obj->TextLen); return obj->TextSrc[idx]; }
+static char    STB_TEXTEDIT_GETCHAR(const ImGuiInputTextState* obj, int idx)                      { IM_ASSERT(idx >= 0 && idx <= obj->TextLen); return obj->TextSrc[idx]; }
 static float   STB_TEXTEDIT_GETWIDTH(ImGuiInputTextState* obj, int line_start_idx, int char_idx)  { unsigned int c; ImTextCharFromUtf8(&c, obj->TextSrc + line_start_idx + char_idx, obj->TextSrc + obj->TextLen); if ((ImWchar)c == '\n') return IMSTB_TEXTEDIT_GETWIDTH_NEWLINE; ImGuiContext& g = *obj->Ctx; return g.FontBaked->GetCharAdvance((ImWchar)c) * g.FontBakedScale; }
 static char    STB_TEXTEDIT_NEWLINE = '\n';
 static void    STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, ImGuiInputTextState* obj, int line_start_idx)
@@ -4607,8 +4608,8 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         item_data_backup = g.LastItemData;
         window->DC.CursorPos = backup_pos;
 
-        // Prevent NavActivation from Tabbing when our widget accepts Tab inputs: this allows cycling through widgets without stopping.
-        if (g.NavActivateId == id && (g.NavActivateFlags & ImGuiActivateFlags_FromTabbing) && (flags & ImGuiInputTextFlags_AllowTabInput))
+        // Prevent NavActivation from explicit Tabbing when our widget accepts Tab inputs: this allows cycling through widgets without stopping.
+        if (g.NavActivateId == id && (g.NavActivateFlags & ImGuiActivateFlags_FromTabbing) && !(g.NavActivateFlags & ImGuiActivateFlags_FromFocusApi) && (flags & ImGuiInputTextFlags_AllowTabInput))
             g.NavActivateId = 0;
 
         // Prevent NavActivate reactivating in BeginChild() when we are already active.
@@ -9557,6 +9558,19 @@ static ImGuiPtrOrIndex GetTabBarRefFromTabBar(ImGuiTabBar* tab_bar)
     return ImGuiPtrOrIndex(tab_bar);
 }
 
+ImGuiTabBar* ImGui::TabBarFindByID(ImGuiID id)
+{
+    ImGuiContext& g = *GImGui;
+    return g.TabBars.GetByKey(id);
+}
+
+// Remove TabBar data (currently only used by TestEngine)
+void    ImGui::TabBarRemove(ImGuiTabBar* tab_bar)
+{
+    ImGuiContext& g = *GImGui;
+    g.TabBars.Remove(tab_bar->ID, tab_bar);
+}
+
 bool    ImGui::BeginTabBar(const char* str_id, ImGuiTabBarFlags flags)
 {
     ImGuiContext& g = *GImGui;
@@ -9895,7 +9909,8 @@ static void ImGui::TabBarLayout(ImGuiTabBar* tab_bar)
     tab_bar->TabsNames.Buf.resize(0);
 
     // If we have lost the selected tab, select the next most recently active one
-    if (found_selected_tab_id == false)
+    const bool tab_bar_appearing = (tab_bar->PrevFrameVisible + 1 < g.FrameCount);
+    if (found_selected_tab_id == false && !tab_bar_appearing)
         tab_bar->SelectedTabId = 0;
     if (tab_bar->SelectedTabId == 0 && tab_bar->NextSelectedTabId == 0 && most_recently_selected_tab != NULL)
         scroll_to_tab_id = tab_bar->SelectedTabId = most_recently_selected_tab->ID;

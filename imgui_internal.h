@@ -1679,8 +1679,9 @@ enum ImGuiActivateFlags_
     ImGuiActivateFlags_PreferInput          = 1 << 0,       // Favor activation that requires keyboard text input (e.g. for Slider/Drag). Default for Enter key.
     ImGuiActivateFlags_PreferTweak          = 1 << 1,       // Favor activation for tweaking with arrows or gamepad (e.g. for Slider/Drag). Default for Space key and if keyboard is not used.
     ImGuiActivateFlags_TryToPreserveState   = 1 << 2,       // Request widget to preserve state if it can (e.g. InputText will try to preserve cursor/selection)
-    ImGuiActivateFlags_FromTabbing          = 1 << 3,       // Activation requested by a tabbing request
+    ImGuiActivateFlags_FromTabbing          = 1 << 3,       // Activation requested by a tabbing request (ImGuiNavMoveFlags_IsTabbing)
     ImGuiActivateFlags_FromShortcut         = 1 << 4,       // Activation requested by an item shortcut via SetNextItemShortcut() function.
+    ImGuiActivateFlags_FromFocusApi         = 1 << 5,       // Activation requested by an api request (ImGuiNavMoveFlags_FocusApi)
 };
 
 // Early work-in-progress API for ScrollToItem()
@@ -3522,6 +3523,8 @@ namespace ImGui
 
     // Tab Bars
     inline    ImGuiTabBar*  GetCurrentTabBar() { ImGuiContext& g = *GImGui; return g.CurrentTabBar; }
+    IMGUI_API ImGuiTabBar*  TabBarFindByID(ImGuiID id);
+    IMGUI_API void          TabBarRemove(ImGuiTabBar* tab_bar);
     IMGUI_API bool          BeginTabBarEx(ImGuiTabBar* tab_bar, const ImRect& bb, ImGuiTabBarFlags flags);
     IMGUI_API ImGuiTabItem* TabBarFindTabByID(ImGuiTabBar* tab_bar, ImGuiID tab_id);
     IMGUI_API ImGuiTabItem* TabBarFindTabByOrder(ImGuiTabBar* tab_bar, int order);
