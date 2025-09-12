@@ -804,13 +804,13 @@ struct ImChunkStream
 // Maintain a line index for a text buffer. This is a strong candidate to be moved into the public API.
 struct ImGuiTextIndex
 {
-    ImVector<int>   LineOffsets;
+    ImVector<int>   Offsets;
     int             EndOffset = 0;                          // Because we don't own text buffer we need to maintain EndOffset (may bake in LineOffsets?)
 
-    void            clear()                                 { LineOffsets.clear(); EndOffset = 0; }
-    int             size()                                  { return LineOffsets.Size; }
-    const char*     get_line_begin(const char* base, int n) { return base + LineOffsets[n]; }
-    const char*     get_line_end(const char* base, int n)   { return base + (n + 1 < LineOffsets.Size ? (LineOffsets[n + 1] - 1) : EndOffset); }
+    void            clear()                                 { Offsets.clear(); EndOffset = 0; }
+    int             size()                                  { return Offsets.Size; }
+    const char*     get_line_begin(const char* base, int n) { return base + (Offsets.Size != 0 ? Offsets[n] : 0); }
+    const char*     get_line_end(const char* base, int n)   { return base + (n + 1 < Offsets.Size ? (Offsets[n + 1] - 1) : EndOffset); }
     void            append(const char* base, int old_size, int new_size);
 };
 
@@ -1015,15 +1015,6 @@ enum ImGuiHoveredFlagsPrivate_
 // Extend ImGuiInputTextFlags_
 enum ImGuiInputTextFlagsPrivate_
 {
-    // [Experimental]
-    // Word-wrapping caveats:
-    // - Not well tested yet. Please report any incorrect cursor movement, selection behavior etc. bug to https://github.com/ocornut/imgui/issues/3237.
-    // - With our current design it is _much_ slower than a regular text field. Editing a <50K buffer will generally be ok, but editing a 1MB buffer will waste meaningful amount of CPU.
-    //   We are likely to not make the feature public until this is fixed (which requires bigger changes to InputText will be be generally desirable for this and other features)
-    // - Wrapping of long words/sections (e.g. words that are larger than available width) is currently visually not pleasing.
-    // - Vertical scrollbar is currently always visible.
-    ImGuiInputTextFlags_WordWrap            = 1 << 24,  // InputTextMultine(): wrap lines that are too long. (Ref #3237, #952, #1062)
-
     // [Internal]
     ImGuiInputTextFlags_Multiline           = 1 << 26,  // For internal use by InputTextMultiline()
     ImGuiInputTextFlags_MergedItem          = 1 << 27,  // For internal use by TempInputText(), will skip calling ItemAdd(). Require bounding-box to strictly match.
@@ -2430,6 +2421,7 @@ struct ImGuiContext
 
     // Widget state
     ImGuiInputTextState     InputTextState;
+    ImGuiTextIndex          InputTextLineIndex;                 // Temporary storage
     ImGuiInputTextDeactivatedState InputTextDeactivatedState;
     ImFontBaked             InputTextPasswordFontBackupBaked;
     ImFontFlags             InputTextPasswordFontBackupFlags;
@@ -3258,6 +3250,7 @@ namespace ImGui
     IMGUI_API float         CalcWrapWidthForPos(const ImVec2& pos, float wrap_pos_x);
     IMGUI_API void          PushMultiItemsWidths(int components, float width_full);
     IMGUI_API void          ShrinkWidths(ImGuiShrinkWidthItem* items, int count, float width_excess, float width_min);
+    IMGUI_API void          CalcClipRectVisibleItemsY(const ImRect& clip_rect, const ImVec2& pos, float items_height, int* out_visible_start, int* out_visible_end);
 
     // Parameter stacks (shared)
     IMGUI_API const ImGuiStyleVarInfo* GetStyleVarInfo(ImGuiStyleVar idx);

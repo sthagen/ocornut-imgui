@@ -55,6 +55,18 @@ Other Changes:
 - Nav: fixed Ctrl+Tab window appearing as empty when the sole active and focused
   window has the ImGuiWindowFlags_NoNavFocus flag. (#8914)
 - Bullet: fixed tesselation amount which looked out of place in very large sizes.
+- InputText: added ImGuiInputTextFlags_WordWrap flag to word-wrap multi-line buffers.
+  (#3237, #952, #1062, #7363). Current caveats:
+  - This is marked as beta because not being tested enough.
+    Please report any incorrect cursor movement, selection behavior etc. bug to #3237.
+  - Wrapping style is not ideal. Wrapping of long words/sections (e.g. words
+    larger than total available width) may be particularly unpleasing.
+  - Wrapping width needs to always account for the possibility of a vertical scrollbar.
+  - It is currently much slower than regular text fields.
+    - Ballpark estimate of cost on my 2019 desktop PC:
+      For a 100 KB text buffer: +~0.3 ms/+~1.0 ms (Optimized vs Debug builds).
+    - The CPU cost is very roughly proportional to text length, so a 10 KB buffer
+      should cost about ten times less.
 - InputText, InputInt, InputFloat: fixed an issue where using Escape to revert
   would not write back the reverted value during the IsItemDeactivatedAfterEdit()
   frame if the provided input buffer doesn't store temporary edits.
@@ -66,6 +78,8 @@ Other Changes:
   In theory the buffer size should always account for a zero-terminator, but idioms
   such as using InputTextMultiline() with ImGuiInputTextFlags_ReadOnly to display
   a text blob are facilitated by allowing this.
+- InputText: refactored internals to simplify and optimizing rendering of selection.
+  Very large selection (e.g. 1 MB) now take less overhead.
 - InputText: revert a change in 1.79 where pressing Down or PageDown on the last line
   of a multi-line buffer without a trailing carriage return would keep the cursor
   unmoved. We revert back to move to the end of line in this situation.
@@ -91,7 +105,9 @@ Other Changes:
   io.ConfigDebugBeginReturnValueOnce/ConfigDebugBeginReturnValueLoop. (#8931) [@harrymander]
 - Demo: tweaked ShowFontSelector() and ShowStyleSelector() to update selection
   while navigating and to not close popup automatically.
+- CI: Updates Windows CI to use a more recent VulkanSDK. (#8925, #8778) [@yaz0r]
 - Examples: Android: Android+OpenGL3: update Gradle project (#8888, #8878) [@scribam]
+- Examples: GLFW+OpenGL2, GLFW+Vulkan: Fixed not applying content scale. (#8921, #8756)
 - Backends: SDL_GPU: Added ImGui_ImplSDLGPU3_InitInfo::SwapchainComposition and
   PresentMode to configure how secondary viewports are created. Currently only used
   multi-viewport mode. (#8892) [@PTSVU]
@@ -191,7 +207,6 @@ Other Changes:
   to play nice with -fsanitize=undefined. (#8874) [@i25e]
 - CI: Added SDL3 builds to MacOS and Windows. (#8819, #8778) [@scribam]
 - CI: Updated Windows CI to use a more recent SDL2. (#8819, #8778) [@scribam]
-- CI: Updates Windows CI to use a more recent VulkanSDK. (#8925, #8778) [@yaz0r]
 - Examples: SDL3+Metal: added SDL3+Metal example. (#8827, #8825) [@shi-yan]
 - Examples: SDL3+SDL_GPU: use SDL_WaitAndAcquireGPUSwapchainTexture() instead
   of SDL_AcquireGPUSwapchainTexture(). (#8830) [@itsdanott]
