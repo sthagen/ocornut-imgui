@@ -47,8 +47,8 @@ Other Changes:
   result in temporarily incorrect state, which would lead to bugs to side effects
   in various locations, e.g. GetContentRegionAvail() calls or using clipper. (#9005)
   EndTable() was mistakenly restoring a wrong current table.
-- InputText: when buffer is not resizable, trying to paste contents that
-  cannot fit will now truncate text instead of ignoring the paste. (#9029)
+- Disabled: fixed a bug when a previously enabled item that got nav focus
+  and then turns disabled could still be activated using keyboard. (#9036)
 - InputText: avoid continuously overwriting ownership of ImGuiKey_Enter/_KeypadEnter
   keys in order to allow e.g. external Shortcut override behavior. (#9004)
 - InputText: when using a callback to reduce/manipulate the value of BufTextLen,
@@ -76,6 +76,9 @@ Other Changes:
     When using Emscripten 4.0.10+, backend now defaults to IMGUI_IMPL_WEBGPU_BACKEND_DAWN
     instead of IMGUI_IMPL_WEBGPU_BACKEND_WGPU, if neither are specified.
     (note: examples application were not updated yet)
+  - Win32: Revert 1.92.4 change of comparing dwPacketNumber, which prevents
+    refreshing accurate gamepad info after focus-out + io.ClearInputKeys(). (#8556)
+
 - Examples:
   - GLFW+WebGPU: removed unnecessary ImGui_ImplWGPU_InvalidateDeviceObjects() call
     during surface resize. (#8381)
