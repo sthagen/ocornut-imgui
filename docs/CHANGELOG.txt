@@ -47,6 +47,9 @@ Other Changes:
   result in temporarily incorrect state, which would lead to bugs to side effects
   in various locations, e.g. GetContentRegionAvail() calls or using clipper. (#9005)
   EndTable() was mistakenly restoring a wrong current table.
+- Tables: Angled headers: fixed an auto-resize feedback loop that could
+  affect tables with empty non-resizing columns using angled headers, making
+  them typically flicker back and forth between +0 and +1 pixels.
 - Disabled: fixed a bug when a previously enabled item that got nav focus
   and then turns disabled could still be activated using keyboard. (#9036)
 - InputText: when buffer is not resizable, trying to paste contents that
@@ -73,8 +76,11 @@ Other Changes:
 - Demo: About Box: emit infos to convey when IM_ASSERT() macro is disabled,
   - so users don't miss out on programming errors being reported.
   - so it is included in config/build info submitted in new GitHub Issues.
-- Debug Tools: fixed DebugTextEncoding() potentially reading out of bounds
-  if provided a trailing truncated UTF-8 sequence.
+- Debug Tools:
+   - Fixed DebugTextEncoding() potentially reading out of bounds when
+     provided a trailing truncated UTF-8 sequence.
+   - Metrics: fixed table and columns rect highlight from display when
+     debug/metrics window is not in the same viewport as the table.
 - Backends:
   - GLFW: fixed building on Linux platforms where Wayland headers
     are not available. (#9024, #8969, #8921, #8920) [@jagot]
