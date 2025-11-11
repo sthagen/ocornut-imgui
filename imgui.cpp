@@ -6650,14 +6650,6 @@ static ImVec2 CalcWindowAutoFitSize(ImGuiWindow* window, const ImVec2& size_cont
         ImVec2 size_min = CalcWindowMinSize(window);
         ImVec2 size_auto_fit = ImClamp(size_desired, ImMin(size_min, size_max), size_max);
 
-        // FIXME: CalcWindowAutoFitSize() doesn't take into account that only one axis may be auto-fit when calculating scrollbars,
-        // we may need to compute/store three variants of size_auto_fit, for x/y/xy.
-        // Here we implement a workaround for child windows only, but a full solution would apply to normal windows as well:
-        if ((window->ChildFlags & ImGuiChildFlags_ResizeX) && !(window->ChildFlags & (ImGuiChildFlags_ResizeY | ImGuiChildFlags_AutoResizeY)))
-            size_auto_fit.y = window->SizeFull.y;
-        else if ((window->ChildFlags & ImGuiChildFlags_ResizeY) && !(window->ChildFlags & (ImGuiChildFlags_ResizeX | ImGuiChildFlags_AutoResizeX)))
-            size_auto_fit.x = window->SizeFull.x;
-
         // When the window cannot fit all contents (either because of constraints, either because screen is too small),
         // we are growing the size on the other axis to compensate for expected scrollbar. FIXME: Might turn bigger than ViewportSize-WindowPadding.
         ImVec2 size_auto_fit_after_constraint = CalcWindowSizeAfterConstraint(window, size_auto_fit);
@@ -6968,8 +6960,8 @@ static int ImGui::UpdateWindowManualResize(ImGuiWindow* window, int* border_hove
     }
 
     // Apply back modified position/size to window
-    const ImVec2 curr_pos = window->Pos;
-    const ImVec2 curr_size = window->SizeFull;
+    const ImVec2 old_pos = window->Pos;
+    const ImVec2 old_size = window->SizeFull;
     if (size_target.x != FLT_MAX && (window->Size.x != size_target.x || window->SizeFull.x != size_target.x))
         window->Size.x = window->SizeFull.x = size_target.x;
     if (size_target.y != FLT_MAX && (window->Size.y != size_target.y || window->SizeFull.y != size_target.y))
@@ -6978,7 +6970,7 @@ static int ImGui::UpdateWindowManualResize(ImGuiWindow* window, int* border_hove
         window->Pos.x = ImTrunc(pos_target.x);
     if (pos_target.y != FLT_MAX && window->Pos.y != ImTrunc(pos_target.y))
         window->Pos.y = ImTrunc(pos_target.y);
-    if (curr_pos.x != window->Pos.x || curr_pos.y != window->Pos.y || curr_size.x != window->SizeFull.x || curr_size.y != window->SizeFull.y)
+    if (old_pos.x != window->Pos.x || old_pos.y != window->Pos.y || old_size.x != window->SizeFull.x || old_size.y != window->SizeFull.y)
         MarkIniSettingsDirty(window);
 
     // Recalculate next expected border expected coordinates
@@ -7578,36 +7570,39 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         window->ScrollbarSizes = ImVec2(0.0f, 0.0f);
 
         // Calculate auto-fit size, handle automatic resize
-        const ImVec2 size_auto_fit = CalcWindowAutoFitSize(window, window->ContentSizeIdeal, ~0);
-        if ((flags & ImGuiWindowFlags_AlwaysAutoResize) && !window->Collapsed)
+        // - Using SetNextWindowSize() overrides ImGuiWindowFlags_AlwaysAutoResize, so it can be used on tooltips/popups, etc.
+        // - We still process initial auto-fit on collapsed windows to get a window width, but otherwise don't honor ImGuiWindowFlags_AlwaysAutoResize when collapsed.
+        // - Auto-fit may only grow window during the first few frames.
         {
-            // Using SetNextWindowSize() overrides ImGuiWindowFlags_AlwaysAutoResize, so it can be used on tooltips/popups, etc.
-            if (!window_size_x_set_by_api)
+            const bool size_auto_fit_x_always = !window_size_x_set_by_api && (flags & ImGuiWindowFlags_AlwaysAutoResize) && !window->Collapsed;
+            const bool size_auto_fit_y_always = !window_size_y_set_by_api && (flags & ImGuiWindowFlags_AlwaysAutoResize) && !window->Collapsed;
+            const bool size_auto_fit_x_current = !window_size_x_set_by_api && (window->AutoFitFramesX > 0);
+            const bool size_auto_fit_y_current = !window_size_y_set_by_api && (window->AutoFitFramesY > 0);
+            int size_auto_fit_mask = 0;
+            if (size_auto_fit_x_always || size_auto_fit_x_current)
+                size_auto_fit_mask |= (1 << ImGuiAxis_X);
+            if (size_auto_fit_y_always || size_auto_fit_y_current)
+                size_auto_fit_mask |= (1 << ImGuiAxis_Y);
+            const ImVec2 size_auto_fit = CalcWindowAutoFitSize(window, window->ContentSizeIdeal, size_auto_fit_mask);
+
+            const ImVec2 old_size = window->SizeFull;
+            if (size_auto_fit_x_always || size_auto_fit_x_current)
             {
-                window->SizeFull.x = size_auto_fit.x;
+                if (size_auto_fit_x_always)
+                    window->SizeFull.x = size_auto_fit.x;
+                else
+                    window->SizeFull.x = window->AutoFitOnlyGrows ? ImMax(window->SizeFull.x, size_auto_fit.x) : size_auto_fit.x;
                 use_current_size_for_scrollbar_x = true;
             }
-            if (!window_size_y_set_by_api)
+            if (size_auto_fit_y_always || size_auto_fit_y_current)
             {
-                window->SizeFull.y = size_auto_fit.y;
+                if (size_auto_fit_y_always)
+                    window->SizeFull.y = size_auto_fit.y;
+                else
+                    window->SizeFull.y = window->AutoFitOnlyGrows ? ImMax(window->SizeFull.y, size_auto_fit.y) : size_auto_fit.y;
                 use_current_size_for_scrollbar_y = true;
             }
-        }
-        else if (window->AutoFitFramesX > 0 || window->AutoFitFramesY > 0)
-        {
-            // Auto-fit may only grow window during the first few frames
-            // We still process initial auto-fit on collapsed windows to get a window width, but otherwise don't honor ImGuiWindowFlags_AlwaysAutoResize when collapsed.
-            if (!window_size_x_set_by_api && window->AutoFitFramesX > 0)
-            {
-                window->SizeFull.x = window->AutoFitOnlyGrows ? ImMax(window->SizeFull.x, size_auto_fit.x) : size_auto_fit.x;
-                use_current_size_for_scrollbar_x = true;
-            }
-            if (!window_size_y_set_by_api && window->AutoFitFramesY > 0)
-            {
-                window->SizeFull.y = window->AutoFitOnlyGrows ? ImMax(window->SizeFull.y, size_auto_fit.y) : size_auto_fit.y;
-                use_current_size_for_scrollbar_y = true;
-            }
-            if (!window->Collapsed)
+            if (old_size.x != window->SizeFull.x || old_size.y != window->SizeFull.y)
                 MarkIniSettingsDirty(window);
         }
 
@@ -10220,8 +10215,9 @@ void ImGui::UpdateMouseWheel()
         {
             const ImVec2 offset = window->Size * (1.0f - scale) * (g.IO.MousePos - window->Pos) / window->Size;
             SetWindowPos(window, window->Pos + offset, 0);
-            window->Size = ImTrunc(window->Size * scale);
+            window->Size = ImTrunc(window->Size * scale); // FIXME: Legacy-ish code, call SetWindowSize()?
             window->SizeFull = ImTrunc(window->SizeFull * scale);
+            MarkIniSettingsDirty(window);
         }
         return;
     }
