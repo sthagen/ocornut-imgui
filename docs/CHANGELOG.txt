@@ -121,10 +121,14 @@ Other Changes:
    - Metrics: fixed table and columns rect highlight from display when
      debug/metrics window is not in the same viewport as the table.
 - Backends:
+  - Null: added imgui_impl_null platform/renderer backend.
+    This is designed if you need to run e.g. context with no input or no ouput.
   - GLFW: fixed building on Linux platforms where Wayland headers
     are not available. (#9024, #8969, #8921, #8920) [@jagot]
   - GLFW: lower minimum requirement from GLFW 3.1 to GLFW 3.0. Though
     a recent version e.g GLFW 3.4 is highly recommended! (#9055) [@Clownacy]
+  - GLFW: fixed last `ImGui_ImplGlfw_Shutdown()` not immediately clearing the context
+    map, which would be detected by leak trackers. (#9075, #8676, #8239, #8069) [@erincatto]
   - SDL3: fixed Platform_OpenInShellFn() return value (the return value
     was unused in core but might be used by a direct caller). (#9027) [@achabense]
   - SDL3: fixed an issue with missing characters events when an already active text
@@ -147,6 +151,8 @@ Other Changes:
   - Win32: Revert 1.92.4 change of comparing dwPacketNumber, which prevents
     refreshing accurate gamepad info after focus-out + io.ClearInputKeys(). (#8556)
 - Examples:
+  - Null: update examples_null to use imgui_impl_null (which is a bit overengineering
+    but somehow consistent).
   - GLFW+WebGPU: update example for latest specs, to work on Emscripten 4.0.10+,
     latest Dawn-Native and WGPU-Native. (#8381, #8567, #8191, #7435) [@brutpitt]
   - GLFW+WebGPU: removed unnecessary ImGui_ImplWGPU_InvalidateDeviceObjects() call
