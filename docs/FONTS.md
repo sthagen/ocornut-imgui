@@ -202,7 +202,7 @@ if (ImGui::Button(u8"ロード"))
 {
     // do stuff
 }
-ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
+ImGui::InputText("string", buf, IM_COUNTOF(buf));
 ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
 ```
 
@@ -228,6 +228,7 @@ ImFontConfig font_cfg;
 font_cfg.FontDataOwnedByAtlas = false;
 ImFont* font = io.Fonts->AddFontFromMemoryTTF(data, data_size, size_pixels, &font_cfg);
 ```
+IMPORTANT: Since 1.92, when using `FontDataOwnedByAtlas = false`, font data needs to available until `atlas->RemoveFont()`, or more typically until a shutdown of the owning context or font atlas. It was not immediately noticeable in 1.92.0 due to a bug in handling `FontDataOwnedByAtlas = false`, which was fixed in 1.92.6.
 
 ##### [Return to Index](#index)
 
@@ -438,7 +439,7 @@ unsigned char* tex_pixels = nullptr;
 int tex_width, tex_height;
 io.Fonts->GetTexDataAsRGBA32(&tex_pixels, &tex_width, &tex_height);
 
-for (int rect_n = 0; rect_n < IM_ARRAYSIZE(rect_ids); rect_n++)
+for (int rect_n = 0; rect_n < IM_COUNTOF(rect_ids); rect_n++)
     if (const ImTextureRect* rect = io.Fonts->GetCustomRect(rect_ids[rect_n]))
     {
         // Fill the custom rectangle with red pixels (in reality you would draw/copy your bitmap data here!)
