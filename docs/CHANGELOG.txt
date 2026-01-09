@@ -41,6 +41,12 @@ HOW TO UPDATE?
 
 Breaking Changes:
 
+- Commented out legacy names obsoleted in 1.90 (Sept 2023):
+  - BeginChildFrame()     --> BeginChild() with ImGuiChildFlags_FrameStyle flag.
+  - EndChildFrame()       --> EndChild().
+  - ShowStackToolWindow() --> ShowIDStackToolWindow().
+  - IM_OFFSETOF()         --> offsetof().
+  - IM_FLOOR()            --> IM_TRUNC() [internal, for positive values only]
 - Hashing: handling of "###" operator to reset to seed within a string identifier
   doesn't include the "###" characters in the output hash anymore:
       Before: GetID("Hello###World") == GetID("###World") != GetID("World");
@@ -70,7 +76,33 @@ Breaking Changes:
       the issue altogether.
   - Removed ImFontConfig::PixelSnapV added in 1.92 which turns out is unnecessary
     (and misdocumented). Post-rescale GlyphOffset is always rounded.
-
+ - Popups: changed compile-time 'ImGuiPopupFlags popup_flags = 1' default value to be '= 0' for
+   BeginPopupContextItem(), BeginPopupContextWindow(), BeginPopupContextVoid(), OpenPopupOnItemClick().
+   The default value has same meaning before and after. (#9157, #9146)
+   - Before this version, those functions had a 'ImGuiPopupFlags popup_flags = 1' default
+     value in their function signature. This was introduced by a change on 2020/06/23 (1.77)
+     while changing the signature from 'int mouse_button' to 'ImGuiPopupFlags popup_flags'
+     and trying to preserve then-legacy behavior.
+   - We have now changed this behavior to: cleanup a very old API quirk, facilitate use by
+     bindings, and to remove the last and error-prone non-zero default value. Also because we
+     deemed it extremely rare to use those helper functions with the Left mouse button!
+     As using the LMB would generally be triggered via another widget, e.g. a Button() +
+     a OpenPopup()/BeginPopup() call.
+   - Before: The default = 1 means ImGuiPopupFlags_MouseButtonRight.
+             Explicitly passing a literal 0 means ImGuiPopupFlags_MouseButtonLeft.
+   - After:  The default = 0 means ImGuiPopupFlags_MouseButtonRight.
+             Explicitly passing a literal 1 also means ImGuiPopupFlags_MouseButtonRight
+             (if legacy behavior are enabled) or will assert (if legacy behavior are disabled).
+   - TL;DR: if you don't want to use right mouse button for popups, always specify it
+     explicitly using a named ImGuiPopupFlags_MouseButtonXXXX value.
+   Recap:
+   - BeginPopupContextItem("foo");                                         // Behavior unchanged (use Right button)
+   - BeginPopupContextItem("foo", ImGuiPopupFlags_MouseButtonLeft);        // Behavior unchanged (use Left button)
+   - BeginPopupContextItem("foo", ImGuiPopupFlags_MouseButtonLeft | xxx);  // Behavior unchanged (use Left button + flags)
+   - BeginPopupContextItem("foo", ImGuiPopupFlags_MouseButtonRight | xxx); // Behavior unchanged (use Right button + flags)
+   - BeginPopupContextItem("foo", 1);                                      // Behavior unchanged (as a courtesy we legacy interpret 1 as ImGuiPopupFlags_MouseButtonRight, will assert if disabling legacy behaviors.
+   - BeginPopupContextItem("foo", 0);                                      // !! Behavior changed !! Was Left button. Now will defaults to Right button! --> Use ImGuiPopupFlags_MouseButtonLeft.
+   - BeginPopupContextItem("foo", ImGuiPopupFlags_NoReopen);               // !! Behavior changed !! Was Left button + flags. Now will defaults to Right button! --> Use ImGuiPopupFlags_MouseButtonLeft | xxx.
 
 Other Changes:
 
@@ -124,10 +156,19 @@ Other Changes:
       end of a line rather than at the beginning of next line. (#8990, #3237)
   - Fixed low-level word-wrapping function reading from *text_end when passed
     a string range. (#9107) [@achabense]
+- Nav:
+  - Fixed remote/shortcut InputText() not teleporting mouse cursor when
+    nav cursor is visible and `io.ConfigNavMoveSetMousePos` is enabled.
 - Scrollbar: fixed a codepath leading to a divide-by-zero (which would not be
   noticeable by user but detected by sanitizers). (#9089) [@judicaelclair]
 - Added GetItemFlags() in public API for consistency and to expose generic
   flags of last submitted item. (#9127)
+- Shortcuts:
+  - IsItemHovered() without ImGuiHoveredFlags_AllowWhenBlockedByActiveItem
+    doesn't filter out the signal when activated item is a shortcut remote activation;
+    (which mimicks what's done internally in the ItemHoverable() function). (#9138)
+  - Fixed tooltip placement being affected for a frame when located over an item
+    activated by SetNextItemShortcut(). (#9138)
 - Debug Tools:
   - Debug Log: fixed incorrectly printing characters in IO log when submitting
     non-ASCII values to io.AddInputCharacter(). (#9099)
