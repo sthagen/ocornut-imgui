@@ -105,6 +105,10 @@ Breaking Changes:
    - BeginPopupContextItem("foo", 1);                                      // Behavior unchanged (as a courtesy we legacy interpret 1 as ImGuiPopupFlags_MouseButtonRight, will assert if disabling legacy behaviors.
    - BeginPopupContextItem("foo", 0);                                      // !! Behavior changed !! Was Left button. Now will defaults to Right button! --> Use ImGuiPopupFlags_MouseButtonLeft.
    - BeginPopupContextItem("foo", ImGuiPopupFlags_NoReopen);               // !! Behavior changed !! Was Left button + flags. Now will defaults to Right button! --> Use ImGuiPopupFlags_MouseButtonLeft | xxx.
+- Backends:
+  - Vulkan: optional ImGui_ImplVulkanH_DestroyWindow() helper used by our example
+    code does not call vkDestroySurfaceKHR(): because surface is created by caller
+    of ImGui_ImplVulkanH_CreateOrResizeWindow(), it is more consistent. (#9163)
 
 Other Changes:
 
@@ -191,6 +195,8 @@ Other Changes:
     forcefully disable either. (#9109, #9116)
   - OpenGL3: Fixed embedded loader multiple init/shutdown cycles broken on some
     platforms. (#8792, #9112)
+  - SDL2, SDL3: changed GetClipboardText() handler to return NULL on error aka
+    clipboard contents is not text. Consistent with other backends. (#9168)
   - SDL_GPU3: macOS version can use MSL shaders in order to support macOS 10.14+
     (vs Metallib shaders requiring macOS 14+). Requires application calling
     SDL_CreateGPUDevice() with SDL_GPU_SHADERFORMAT_MSL. (#9076) [@Niminem]
