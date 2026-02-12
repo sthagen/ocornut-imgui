@@ -3175,7 +3175,7 @@ ImFont* ImFontAtlas::AddFontDefaultVector(const ImFontConfig* font_cfg_template)
     if (font_cfg.Name[0] == '\0')
         ImFormatString(font_cfg.Name, IM_COUNTOF(font_cfg.Name), "ProggyVector.ttf");
     font_cfg.ExtraSizeScale = 1.140f; // Match ProggyClean
-    font_cfg.GlyphOffset.y += -0.5f * (font_cfg.SizePixels / 13.0f); // Closer match ProggyClean + avoid descenders going too high (with current code).
+    font_cfg.GlyphOffset.y += 1.0f * (font_cfg.SizePixels / 13.0f); // Closer match ProggyClean + avoid descenders going too high (with current code).
 
     int ttf_compressed_size = 0;
     const char* ttf_compressed = GetDefaultCompressedFontDataProggyVector(&ttf_compressed_size);
@@ -3695,7 +3695,7 @@ void ImFontAtlasFontDestroySourceData(ImFontAtlas* atlas, ImFontConfig* src)
     IM_UNUSED(atlas);
     // IF YOU GET A CRASH IN THE IM_FREE() CALL HERE AND USED AddFontFromMemoryTTF():
     // - DUE TO LEGACY REASON AddFontFromMemoryTTF() TRANSFERS MEMORY OWNERSHIP BY DEFAULT.
-    // - IT WILL THEREFORE CRASH WHEN PASSED DATA WHICH MAY NOT BE FREEED BY IMGUI.
+    // - IT WILL THEREFORE CRASH WHEN PASSED DATA WHICH MAY NOT BE FREED BY IMGUI.
     // - USE `ImFontConfig font_cfg; font_cfg.FontDataOwnedByAtlas = false; io.Fonts->AddFontFromMemoryTTF(....., &cfg);` to disable passing ownership/
     // WE WILL ADDRESS THIS IN A FUTURE REWORK OF THE API.
     if (src->FontDataOwnedByAtlas)
@@ -4699,7 +4699,7 @@ static bool ImGui_ImplStbTrueType_FontBakedInit(ImFontAtlas* atlas, ImFontConfig
     {
         // FIXME-NEWFONTS: reevaluate how to use sizing metrics
         // FIXME-NEWFONTS: make use of line gap value
-        float scale_for_layout = bd_font_data->ScaleFactor * baked->Size / src->ExtraSizeScale;
+        const float scale_for_layout = bd_font_data->ScaleFactor * baked->Size / src->ExtraSizeScale;
         int unscaled_ascent, unscaled_descent, unscaled_line_gap;
         stbtt_GetFontVMetrics(&bd_font_data->FontInfo, &unscaled_ascent, &unscaled_descent, &unscaled_line_gap);
         baked->Ascent = ImCeil(unscaled_ascent * scale_for_layout);
