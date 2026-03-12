@@ -4761,7 +4761,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         wrap_width = ImMax(1.0f, GetContentRegionAvail().x + (draw_window->ScrollbarY ? 0.0f : -g.Style.ScrollbarSize));
 
     const bool input_requested_by_nav = (g.ActiveId != id) && ((g.NavActivateId == id) && ((g.NavActivateFlags & ImGuiActivateFlags_PreferInput) || (g.NavInputSource == ImGuiInputSource_Keyboard)));
-
+    const bool input_requested_by_reactivate = (g.InputTextReactivateId == id); // for io.ConfigInputTextEnterKeepActive
     const bool user_clicked = hovered && io.MouseClicked[0];
     const bool user_scroll_finish = is_multiline && state != NULL && g.ActiveId == 0 && g.ActiveIdPreviousFrame == GetWindowScrollbarID(draw_window, ImGuiAxis_Y);
     const bool user_scroll_active = is_multiline && state != NULL && g.ActiveId == GetWindowScrollbarID(draw_window, ImGuiAxis_Y);
@@ -4772,7 +4772,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     const bool init_reload_from_user_buf = (state != NULL && state->WantReloadUserBuf);
     const bool init_changed_specs = (state != NULL && state->Stb->single_line != !is_multiline); // state != NULL means its our state.
-    const bool init_make_active = (user_clicked || user_scroll_finish || input_requested_by_nav);
+    const bool init_make_active = (user_clicked || user_scroll_finish || input_requested_by_nav || input_requested_by_reactivate);
     const bool init_state = (init_make_active || user_scroll_active);
     if (init_reload_from_user_buf)
     {
@@ -5109,11 +5109,13 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             bool is_new_line = is_multiline && !is_gamepad_validate && (is_shift_enter || (is_enter && !ctrl_enter_for_new_line) || (is_ctrl_enter && ctrl_enter_for_new_line));
             if (!is_new_line)
             {
-                validated = true;
+                validated = clear_active_id = true;
                 if (io.ConfigInputTextEnterKeepActive && !is_multiline)
+                {
+                    // Queue reactivation, so that e.g. IsItemDeactivatedAfterEdit() will work. (#9001)
                     state->SelectAll(); // No need to scroll
-                else
-                    clear_active_id = true;
+                    g.InputTextReactivateId = id; // Mark for reactivation on next frame
+                }
             }
             else if (!is_readonly)
             {
