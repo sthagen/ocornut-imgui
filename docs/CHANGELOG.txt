@@ -47,6 +47,10 @@ Breaking Changes:
      indices or memory offsets inside ImTextureID, where 0 might be a valid value.
    - If this is causing problem with e.g your custom ImTextureID definition, you can
      add '#define ImTextureID_Invalid 0' to your imconfig.h + PLEASE report this to GitHub.
+   - If you have hardcoded e.g. 'if (tex_id == 0)' checks they should be updated.
+     e.g. OpenGL2, OpenGL3 and SDLRenderer3 backends incorrectly had 'IM_ASSERT(tex->TexID == 0)'
+     lines which were replaced with 'IM_ASSERT(tex->TexID == ImTextureID_Invalid)'.
+     If you have copied or forked backends consider fixing locally. (#9295)
  - Separator(): fixed a legacy quirk where Separator() was submitting a zero-height
    item for layout purpose, even though it draws a 1-pixel separator.
    The fix could affect code e.g. computing height from multiple widgets in order to
@@ -81,6 +85,8 @@ Other Changes:
   - Reworked io.ConfigInputTextEnterKeepActive mode so that pressing Enter will
     deactivate/reactivate the item in order for e.g. IsItemDeactivatedAfterEdit()
     signals to be emitted the same way regardless of that setting. (#9001, #9115)
+  - Fixed a glitch when using ImGuiInputTextFlags_ElideLeft where the local x offset
+    would be incorrect during the deactivation frame. (#9298)
 - Style:
   - Border sizes are now scaled (and rounded) by ScaleAllSizes().
   - When using large values with ScallAllSizes(), the following items thickness
@@ -90,6 +96,17 @@ Other Changes:
     - TextLink() underline thickness.
     - ColorButton() border thickness.
     - Separator() thickness, via scaling newly added style.SeparatorSize. (#2657, #9263)
+- Nav:
+  - Changed Gamepad mapping for "Activate with Text Input" action: (#8803, #787)
+    - Previously: press North button (PS4/PS5 triangle, Switch X, Xbox Y).
+    - Now: long press (hold) Activate button (PS4/PS5 cross, Switch B, Xbox A) for ~0.60 secs.
+    This is rarely used, somehow easier to discover, and frees a button for other uses.
+    See updated Gamepad Control Sheets: https://www.dearimgui.com/controls_sheets
+  - Short Gamepad Activation press on InputText() always activate with Text Input mode.
+  - Popups: Shift+F10 or Menu key can now open popups menus when using
+    BeginPopupContextItem(), BeginPopupContextWindow() or OpenPopupOnItemClick().
+    (#8803, #9270) [@exelix11, @ocornut]
+  - Popups: pressing North button (PS4/PS5 triangle, SwitchX, Xbox Y) also open popups menus.
 - Clipper:
   - Clear `DisplayStart`/`DisplayEnd` fields when `Step()` returns false.
   - Added `UserIndex` helper storage. This is solely a convenience for cases where
@@ -119,6 +136,7 @@ Other Changes:
     to allocate one. (#8677) [@micb25]
   - WebGPU: fixed undefined behaviors in example code for requesting adapter
     and device. (#9246, #9256) [@r-lyeh]
+  - SDL2+WebGPU: fixed hi-dpi handling. (#9300) [@ypujante]
   - GLFW/SDL2/SDL3+WebGPU: removed suport for Emscripten <4.0.10. (#9281) [@ypujante]
 
 
