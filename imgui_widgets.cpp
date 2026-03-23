@@ -653,6 +653,14 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
                         FocusWindow(window, ImGuiFocusRequestFlags_RestoreFocusedChild); // Still need to focus and bring to front, but try to avoid losing NavId when navigating a child
                     }
                 }
+                if (flags & ImGuiButtonFlags_PressedOnRelease)
+                {
+                    // FIXME: Traditionally ImGuiButtonFlags_PressedOnRelease never took ActiveId. Adding it in 2026-03-20 since ImGuiButtonFlags_NoHoldingActiveId can always be added.
+                    // We don't yet perform an explicit ClearActiveID() to reduce scope of change, but this possibility could be investigated.
+                    if (!(flags & ImGuiButtonFlags_NoHoldingActiveId))
+                        SetActiveID(id, window); // Hold on ID
+                    g.ActiveIdMouseButton = (ImS8)mouse_button_clicked;
+                }
             }
             if (flags & ImGuiButtonFlags_PressedOnRelease)
             {
@@ -1042,7 +1050,7 @@ bool ImGui::ScrollbarEx(const ImRect& bb_frame, ImGuiID id, ImGuiAxis axis, ImS6
     IM_ASSERT(ImMax(size_contents_v, size_visible_v) > 0.0f); // Adding this assert to check if the ImMax(XXX,1.0f) is still needed. PLEASE CONTACT ME if this triggers.
     const ImS64 win_size_v = ImMax(ImMax(size_contents_v, size_visible_v), (ImS64)1);
     const float grab_h_minsize = ImMin(bb.GetSize()[axis], style.GrabMinSize);
-    const float grab_h_pixels = ImClamp(scrollbar_size_v * ((float)size_visible_v / (float)win_size_v), grab_h_minsize, scrollbar_size_v);
+    const float grab_h_pixels = (float)(int)ImClamp(scrollbar_size_v * ((float)size_visible_v / (float)win_size_v), grab_h_minsize, scrollbar_size_v);
     const float grab_h_norm = grab_h_pixels / scrollbar_size_v;
 
     // As a special thing, we allow scrollbar near the edge of a screen/viewport to be reachable with mouse at the extreme edge (#9276)
@@ -4629,11 +4637,8 @@ static int InputTextLineIndexBuild(ImGuiInputTextFlags flags, ImGuiTextIndex* li
         line_index->Offsets.push_back(0);
         size++;
     }
-    if (buf_end > buf && buf_end[-1] == '\n' && size <= max_output_buffer_size && !trailing_line_already_counted)
-    {
+    if (buf_end > buf && buf_end[-1] == '\n' && !trailing_line_already_counted && size++ <= max_output_buffer_size)
         line_index->Offsets.push_back((int)(buf_end - buf));
-        size++;
-    }
     return size;
 }
 
@@ -4734,6 +4739,11 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         draw_window->DC.NavLayersActiveMaskNext |= (1 << draw_window->DC.NavLayerCurrent); // This is to ensure that EndChild() will display a navigation highlight so we can "enter" into it.
         draw_window->DC.CursorPos += style.FramePadding;
         inner_size.x -= draw_window->ScrollbarSizes.x;
+
+        // FIXME: Could this be a ImGuiChildFlags to affect the SetLastItemDataForWindow() call?
+        g.LastItemData.ID = id;
+        g.LastItemData.ItemFlags = item_data_backup.ItemFlags;
+        g.LastItemData.StatusFlags = item_data_backup.StatusFlags;
     }
     else
     {
@@ -4773,8 +4783,9 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     const bool input_requested_by_nav = (g.ActiveId != id) && (g.NavActivateId == id);
     const bool input_requested_by_reactivate = (g.InputTextReactivateId == id); // for io.ConfigInputTextEnterKeepActive
     const bool user_clicked = hovered && io.MouseClicked[0];
-    const bool user_scroll_finish = is_multiline && state != NULL && g.ActiveId == 0 && g.ActiveIdPreviousFrame == GetWindowScrollbarID(draw_window, ImGuiAxis_Y);
-    const bool user_scroll_active = is_multiline && state != NULL && g.ActiveId == GetWindowScrollbarID(draw_window, ImGuiAxis_Y);
+    const ImGuiID scrollbar_id = (is_multiline && state != NULL) ? GetWindowScrollbarID(draw_window, ImGuiAxis_Y) : 0;
+    const bool user_scroll_finish = is_multiline && state != NULL && g.ActiveId == 0 && g.ActiveIdPreviousFrame == scrollbar_id;
+    const bool user_scroll_active = is_multiline && state != NULL && g.ActiveId == scrollbar_id;
     bool clear_active_id = false;
     bool select_all = false;
 
@@ -4783,7 +4794,6 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     const bool init_reload_from_user_buf = (state != NULL && state->WantReloadUserBuf);
     const bool init_changed_specs = (state != NULL && state->Stb->single_line != !is_multiline); // state != NULL means its our state.
     const bool init_make_active = (user_clicked || user_scroll_finish || input_requested_by_nav || input_requested_by_reactivate);
-    const bool init_state = (init_make_active || user_scroll_active);
     if (init_reload_from_user_buf)
     {
         int new_len = (int)ImStrlen(buf);
@@ -4796,7 +4806,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         state->Stb->select_start = state->ReloadSelectionStart;
         state->Stb->cursor = state->Stb->select_end = state->ReloadSelectionEnd; // will be clamped to bounds below
     }
-    else if ((init_state && g.ActiveId != id) || init_changed_specs)
+    else if ((init_make_active && g.ActiveId != id) || init_changed_specs)
     {
         // Access state even if we don't own it yet.
         state = &g.InputTextState;
@@ -4809,8 +4819,11 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         // From the moment we focused we are normally ignoring the content of 'buf' (unless we are in read-only mode)
         const int buf_len = (int)ImStrlen(buf);
         IM_ASSERT(((buf_len + 1 <= buf_size) || (buf_len == 0 && buf_size == 0)) && "Is your input buffer properly zero-terminated?");
-        state->TextToRevertTo.resize(buf_len + 1);    // UTF-8. we use +1 to make sure that .Data is always pointing to at least an empty string.
-        memcpy(state->TextToRevertTo.Data, buf, buf_len + 1);
+        if (!user_scroll_finish)
+        {
+            state->TextToRevertTo.resize(buf_len + 1);    // UTF-8. we use +1 to make sure that .Data is always pointing to at least an empty string.
+            memcpy(state->TextToRevertTo.Data, buf, buf_len + 1);
+        }
 
         // Preserve cursor position and undo/redo stack if we come back to same widget
         // FIXME: Since we reworked this on 2022/06, may want to differentiate recycle_cursor vs recycle_undostate?
@@ -4906,7 +4919,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         ClearActiveID();
 
     // Release focus when we click outside
-    if (g.ActiveId == id && io.MouseClicked[0] && !init_state && !init_make_active) //-V560
+    if (g.ActiveId == id && io.MouseClicked[0] && !init_make_active) //-V560
         clear_active_id = true;
 
     // Lock the decision of whether we are going to take the path displaying the cursor or selection
@@ -5532,7 +5545,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         if (render_selection)
         {
             const ImU32 bg_color = GetColorU32(ImGuiCol_TextSelectedBg, render_cursor ? 1.0f : 0.6f); // FIXME: current code flow mandate that render_cursor is always true here, we are leaving the transparent one for tests.
-            const float bg_offy_up = is_multiline ? 0.0f : -1.0f;    // FIXME: those offsets should be part of the style? they don't play so well with multi-line selection.
+            const float bg_offy_up = is_multiline ? 0.0f : -1.0f; // FIXME-DPI: those offsets should be part of the style? they don't play so well with multi-line selection.
             const float bg_offy_dn = is_multiline ? 0.0f : 2.0f;
             const float bg_eol_width = IM_TRUNC(g.FontBaked->GetCharAdvance((ImWchar)' ') * 0.50f); // So we can see selected empty lines
 
@@ -5561,7 +5574,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
                 rect.Min.y = draw_pos.y - draw_scroll.y + line_n * g.FontSize;
                 rect.Max.x = rect.Min.x + rect_width;
                 rect.Max.y = rect.Min.y + bg_offy_dn + g.FontSize;
-                rect.Min.y -= bg_offy_up;
+                rect.Min.y += bg_offy_up;
                 rect.ClipWith(clip_rect);
                 draw_window->DrawList->AddRectFilled(rect.Min, rect.Max, bg_color);
             }
@@ -8170,10 +8183,13 @@ void ImGui::MultiSelectItemHeader(ImGuiID id, bool* p_selected, ImGuiButtonFlags
     {
         ImGuiButtonFlags button_flags = *p_button_flags;
         button_flags |= ImGuiButtonFlags_NoHoveredOnFocus;
-        if ((!selected || (g.ActiveId == id && g.ActiveIdHasBeenPressedBefore)) && !(ms->Flags & ImGuiMultiSelectFlags_SelectOnClickRelease))
-            button_flags = (button_flags | ImGuiButtonFlags_PressedOnClick) & ~ImGuiButtonFlags_PressedOnClickRelease;
-        else
+        button_flags &= ~(ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_PressedOnClickRelease);
+        if (ms->Flags & ImGuiMultiSelectFlags_SelectOnClickAlways)
+            button_flags |= ImGuiButtonFlags_PressedOnClick;
+        else if (ms->Flags & ImGuiMultiSelectFlags_SelectOnClickRelease)
             button_flags |= ImGuiButtonFlags_PressedOnClickRelease;
+        else // ImGuiMultiSelectFlags_SelectOnAuto
+            button_flags |= (!selected || (g.ActiveId == id && g.ActiveIdHasBeenPressedBefore)) ? ImGuiButtonFlags_PressedOnClick : ImGuiButtonFlags_PressedOnClickRelease;
         *p_button_flags = button_flags;
     }
 }
@@ -8293,7 +8309,7 @@ void ImGui::MultiSelectItemFooter(ImGuiID id, bool* p_selected, bool* p_pressed)
         // Box-select
         ImGuiInputSource input_source = (g.NavJustMovedToId == id || g.NavActivateId == id) ? g.NavInputSource : ImGuiInputSource_Mouse;
         if (flags & (ImGuiMultiSelectFlags_BoxSelect1d | ImGuiMultiSelectFlags_BoxSelect2d))
-            if (selected == false && !g.BoxSelectState.IsActive && !g.BoxSelectState.IsStarting && input_source == ImGuiInputSource_Mouse && g.IO.MouseClickedCount[0] == 1)
+            if (!g.BoxSelectState.IsActive && !g.BoxSelectState.IsStarting && input_source == ImGuiInputSource_Mouse && g.IO.MouseClickedCount[0] == 1)
                 BoxSelectPreStartDrag(ms->BoxSelectId, item_data);
 
         //----------------------------------------------------------------------------------------
@@ -9237,11 +9253,12 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
     PushID(label);
     if (!enabled)
         BeginDisabled();
-    const ImGuiMenuColumns* offsets = &window->DC.MenuColumns;
+
     bool pressed;
 
     // We use ImGuiSelectableFlags_NoSetKeyOwner to allow down on one menu item, move, up on another.
     const ImGuiSelectableFlags selectable_flags = ImGuiSelectableFlags_NoHoldingActiveID | ImGuiSelectableFlags_NoSetKeyOwner | ImGuiSelectableFlags_SelectOnClick | ImGuiSelectableFlags_NoAutoClosePopups;
+    ImGuiMenuColumns* offsets = &window->DC.MenuColumns;
     if (window->DC.LayoutType == ImGuiLayoutType_Horizontal)
     {
         // Menu inside a horizontal menu bar
@@ -9249,9 +9266,8 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
         // For ChildMenu, the popup position will be overwritten by the call to FindBestWindowPosForPopup() in Begin()
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * 0.5f);
         PushStyleVarX(ImGuiStyleVar_ItemSpacing, style.ItemSpacing.x * 2.0f);
-        float w = label_size.x;
         ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, pos.y + window->DC.CurrLineTextBaseOffset);
-        pressed = Selectable("", menu_is_open, selectable_flags, ImVec2(w, label_size.y));
+        pressed = Selectable("", menu_is_open, selectable_flags, label_size);
         LogSetNextTextDecoration("[", "]");
         RenderText(text_pos, label);
         PopStyleVar();
@@ -9265,7 +9281,7 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
         //  Only when they are other items sticking out we're going to add spacing, yet only register minimum width into the layout system.)
         float icon_w = (icon && icon[0]) ? CalcTextSize(icon, NULL).x : 0.0f;
         float checkmark_w = IM_TRUNC(g.FontSize * 1.20f);
-        float min_w = window->DC.MenuColumns.DeclColumns(icon_w, label_size.x, 0.0f, checkmark_w); // Feedback to next frame
+        float min_w = offsets->DeclColumns(icon_w, label_size.x, 0.0f, checkmark_w); // Feedback to next frame
         float extra_w = ImMax(0.0f, GetContentRegionAvail().x - min_w);
         ImVec2 text_pos(window->DC.CursorPos.x, pos.y + window->DC.CurrLineTextBaseOffset);
         pressed = Selectable("", menu_is_open, selectable_flags | ImGuiSelectableFlags_SpanAvailWidth, ImVec2(min_w, label_size.y));
@@ -9450,17 +9466,16 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
         BeginDisabled();
 
     // We use ImGuiSelectableFlags_NoSetKeyOwner to allow down on one menu item, move, up on another.
-    const ImGuiSelectableFlags selectable_flags = ImGuiSelectableFlags_SelectOnRelease | ImGuiSelectableFlags_NoSetKeyOwner | ImGuiSelectableFlags_SetNavIdOnHover;
-    const ImGuiMenuColumns* offsets = &window->DC.MenuColumns;
+    const ImGuiSelectableFlags selectable_flags = ImGuiSelectableFlags_NoHoldingActiveID | ImGuiSelectableFlags_SelectOnRelease | ImGuiSelectableFlags_NoSetKeyOwner | ImGuiSelectableFlags_SetNavIdOnHover;
+    ImGuiMenuColumns* offsets = &window->DC.MenuColumns;
     if (window->DC.LayoutType == ImGuiLayoutType_Horizontal)
     {
         // Mimic the exact layout spacing of BeginMenu() to allow MenuItem() inside a menu bar, which is a little misleading but may be useful
         // Note that in this situation: we don't render the shortcut, we render a highlight instead of the selected tick mark.
-        float w = label_size.x;
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * 0.5f);
         ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, window->DC.CursorPos.y + window->DC.CurrLineTextBaseOffset);
         PushStyleVarX(ImGuiStyleVar_ItemSpacing, style.ItemSpacing.x * 2.0f);
-        pressed = Selectable("", selected, selectable_flags, ImVec2(w, 0.0f));
+        pressed = Selectable("", selected, selectable_flags, ImVec2(label_size.x, 0.0f));
         PopStyleVar();
         if (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_Visible)
             RenderText(text_pos, label);
@@ -9474,7 +9489,7 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
         float icon_w = (icon && icon[0]) ? CalcTextSize(icon, NULL).x : 0.0f;
         float shortcut_w = (shortcut && shortcut[0]) ? CalcTextSize(shortcut, NULL).x : 0.0f;
         float checkmark_w = IM_TRUNC(g.FontSize * 1.20f);
-        float min_w = window->DC.MenuColumns.DeclColumns(icon_w, label_size.x, shortcut_w, checkmark_w); // Feedback for next frame
+        float min_w = offsets->DeclColumns(icon_w, label_size.x, shortcut_w, checkmark_w); // Feedback for next frame
         float stretch_w = ImMax(0.0f, GetContentRegionAvail().x - min_w);
         ImVec2 text_pos(pos.x, pos.y + window->DC.CurrLineTextBaseOffset);
         pressed = Selectable("", false, selectable_flags | ImGuiSelectableFlags_SpanAvailWidth, ImVec2(min_w, label_size.y));

@@ -20,7 +20,7 @@
 //   - Software using Dear ImGui  https://github.com/ocornut/imgui/wiki/Software-using-dear-imgui
 // - Issues & support ........... https://github.com/ocornut/imgui/issues
 // - Test Engine & Automation ... https://github.com/ocornut/imgui_test_engine (test suite, test engine to automate your apps)
-// - Web version of the Demo .... https://pthom.github.io/imgui_manual (w/ source code browser)
+// - Web version of the Demo .... https://pthom.github.io/imgui_explorer (w/ source code browser)
 
 // For FIRST-TIME users having issues compiling/linking/running:
 // please post in https://github.com/ocornut/imgui/discussions if you cannot find a solution in resources above.
@@ -30,7 +30,7 @@
 // Library Version
 // (Integer encoded as XYYZZ for use in #if preprocessor conditionals, e.g. '#if IMGUI_VERSION_NUM >= 12345')
 #define IMGUI_VERSION       "1.92.7 WIP"
-#define IMGUI_VERSION_NUM   19266
+#define IMGUI_VERSION_NUM   19267
 #define IMGUI_HAS_TABLE             // Added BeginTable() - from IMGUI_VERSION_NUM >= 18000
 #define IMGUI_HAS_TEXTURES          // Added ImGuiBackendFlags_RendererHasTextures - from IMGUI_VERSION_NUM >= 19198
 
@@ -341,10 +341,10 @@ typedef ImU64 ImTextureID;      // Default: store up to 64-bits (any pointer or 
 #endif
 
 // Define this if you need to change the invalid value for your backend.
-// - in v1.92.7 (2025/03/12): we changed default value from 0 to -1 as it is a better default, which supports storing offsets/indices.
-// - If this is causing problem with your custom ImTextureID definition, you can add '#define ImTextureID_Invalid' to your imconfig + please report this to GitHub.
+// - If your backend is using ImTextureID to store an index/offset and you need 0 to be valid, You can add '#define ImTextureID_Invalid ((ImTextureID)-1)' in your imconfig.h file.
+// - From 2026/03/12 to 2026/03/19 we experimented with changing to default to -1, but I worried it would cause too many issues in third-party code so it was reverted.
 #ifndef ImTextureID_Invalid
-#define ImTextureID_Invalid     ((ImTextureID)-1)
+#define ImTextureID_Invalid     ((ImTextureID)0)
 #endif
 
 // ImTextureRef = higher-level identifier for a texture. Store a ImTextureID _or_ a ImTextureData*.
@@ -3025,16 +3025,23 @@ enum ImGuiMultiSelectFlags_
     ImGuiMultiSelectFlags_NoAutoClearOnReselect = 1 << 5,   // Disable clearing selection when clicking/selecting an already selected item.
     ImGuiMultiSelectFlags_BoxSelect1d           = 1 << 6,   // Enable box-selection with same width and same x pos items (e.g. full row Selectable()). Box-selection works better with little bit of spacing between items hit-box in order to be able to aim at empty space.
     ImGuiMultiSelectFlags_BoxSelect2d           = 1 << 7,   // Enable box-selection with varying width or varying x pos items support (e.g. different width labels, or 2D layout/grid). This is slower: alters clipping logic so that e.g. horizontal movements will update selection of normally clipped items.
-    ImGuiMultiSelectFlags_BoxSelectNoScroll     = 1 << 8,   // Disable scrolling when box-selecting near edges of scope.
+    ImGuiMultiSelectFlags_BoxSelectNoScroll     = 1 << 8,   // Disable scrolling when box-selecting and moving mouse near edges of scope.
     ImGuiMultiSelectFlags_ClearOnEscape         = 1 << 9,   // Clear selection when pressing Escape while scope is focused.
     ImGuiMultiSelectFlags_ClearOnClickVoid      = 1 << 10,  // Clear selection when clicking on empty location within scope.
     ImGuiMultiSelectFlags_ScopeWindow           = 1 << 11,  // Scope for _BoxSelect and _ClearOnClickVoid is whole window (Default). Use if BeginMultiSelect() covers a whole window or used a single time in same window.
     ImGuiMultiSelectFlags_ScopeRect             = 1 << 12,  // Scope for _BoxSelect and _ClearOnClickVoid is rectangle encompassing BeginMultiSelect()/EndMultiSelect(). Use if BeginMultiSelect() is called multiple times in same window.
-    ImGuiMultiSelectFlags_SelectOnClick         = 1 << 13,  // Apply selection on mouse down when clicking on unselected item. (Default)
-    ImGuiMultiSelectFlags_SelectOnClickRelease  = 1 << 14,  // Apply selection on mouse release when clicking an unselected item. Allow dragging an unselected item without altering selection.
+    ImGuiMultiSelectFlags_SelectOnAuto          = 1 << 13,  // Apply selection on mouse down when clicking on unselected item, on mouse up when clicking on selected item. (Default)
+    ImGuiMultiSelectFlags_SelectOnClickAlways   = 1 << 14,  // Apply selection on mouse down when clicking on any items. Prevents Drag and Drop from being used on multiple-selection, but allows e.g. BoxSelect to always reselect even when clicking inside an existing selection. (Excel style behavior)
+    ImGuiMultiSelectFlags_SelectOnClickRelease  = 1 << 15,  // Apply selection on mouse release when clicking an unselected item. Allow dragging an unselected item without altering selection.
     //ImGuiMultiSelectFlags_RangeSelect2d       = 1 << 15,  // Shift+Selection uses 2d geometry instead of linear sequence, so possible to use Shift+up/down to select vertically in grid. Analogous to what BoxSelect does.
     ImGuiMultiSelectFlags_NavWrapX              = 1 << 16,  // [Temporary] Enable navigation wrapping on X axis. Provided as a convenience because we don't have a design for the general Nav API for this yet. When the more general feature be public we may obsolete this flag in favor of new one.
     ImGuiMultiSelectFlags_NoSelectOnRightClick  = 1 << 17,  // Disable default right-click processing, which selects item on mouse down, and is designed for context-menus.
+    ImGuiMultiSelectFlags_SelectOnMask_         = ImGuiMultiSelectFlags_SelectOnAuto | ImGuiMultiSelectFlags_SelectOnClickAlways | ImGuiMultiSelectFlags_SelectOnClickRelease,
+
+    // Obsolete names
+#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+    ImGuiMultiSelectFlags_SelectOnClick         = ImGuiMultiSelectFlags_SelectOnAuto,         // RENAMED in 1.92.6
+#endif
 };
 
 // Main IO structure returned by BeginMultiSelect()/EndMultiSelect().
@@ -3909,8 +3916,8 @@ inline ImTextureID ImTextureRef::GetTexID() const
 // Using an indirection to avoid patching ImDrawCmd after a SetTexID() call (but this could be an alternative solution too)
 inline ImTextureID ImDrawCmd::GetTexID() const
 {
-    // If you are getting this assert with ImTextureID_Invalid == 0 and your ImTextureID is used to store an index:
-    // - You can add '#define ImTextureID_Invalid ((ImTextureID)-1)' in your imconfig file.
+    // If you are getting this assert with ImTextureID_Invalid == 0 and your ImTextureID is used to store an index or an offset:
+    // - You can add '#define ImTextureID_Invalid ((ImTextureID)-1)' in your imconfig.h file.
     // If you are getting this assert with a renderer backend with support for ImGuiBackendFlags_RendererHasTextures (1.92+):
     // - You must correctly iterate and handle ImTextureData requests stored in ImDrawData::Textures[]. See docs/BACKENDS.md.
     ImTextureID tex_id = TexRef._TexData ? TexRef._TexData->TexID : TexRef._TexID; // == TexRef.GetTexID() above.
