@@ -61,6 +61,8 @@ Other Changes:
 - Multi-Select:
   - Fixed an issue using Multi-Select within a Table causing column width measurement to
     be invalid when trailing column contents is not submitted in the last row. (#9341, #8250)
+  - Fixed an issue using Multi-Select within a Table with the right-most column visible,
+    which could lead to an extra vertical offset in the Header row. (#8250)
   - Box-Select: fixed an issue using ImGuiMultiSelectFlags_BoxSelect1d mode while scrolling.
     Notably, using mouse wheel while holding a box-selection could lead items close to windows
     edges from not being correctly unselected. (#7994, #8250, #7821, #7850, #7970)
@@ -78,6 +80,7 @@ Other Changes:
     and ImGuiSelectionUserData is technically opaque storage. (#7994, #1861)
     (we will probably bring this back as a minor optimization if we have a way to for
     user to tell us ImGuiSelectionUserData are indices)
+  - Box-Select: fixes for using accross nested child windows. (#8364)
   - Box-Select + Clipper: fixed an issue selecting items while scrolling while a clipper
     active. (#7994, #8250, #7821, #7850, #7970)
   - Box-Select + Tables: fixed an issue when calling `BeginMultiSelect()` in a table
