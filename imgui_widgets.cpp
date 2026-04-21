@@ -8358,8 +8358,19 @@ void ImGui::MultiSelectItemFooter(ImGuiID id, bool* p_selected, bool* p_pressed)
     if (ms->BoxSelectId != 0)
         if (ImGuiBoxSelectState* bs = GetBoxSelectState(ms->BoxSelectId))
         {
-            const bool rect_overlap_curr = bs->BoxSelectRectCurr.Overlaps(g.LastItemData.Rect);
-            const bool rect_overlap_prev = bs->BoxSelectRectPrev.Overlaps(g.LastItemData.Rect);
+            ImRect item_rect = g.LastItemData.Rect;
+            if (!window->DC.NavIsScrollPushableX) // FIXME: Rename to be more generic.
+                if (ImGuiTable* table = g.CurrentTable)
+                    if (table->CurrentColumn != -1)
+                    {
+                        // FIXME: We cannot use current ClipRect as it includes HostClipRect.
+                        // A more generic version would be nice, but window->WorkRect.Min/Max exclude CellPadding. (#7994)
+                        ImGuiTableColumn* column = &table->Columns[table->CurrentColumn];
+                        item_rect.Min.x = ImMax(item_rect.Min.x, column->MinX);
+                        item_rect.Max.x = ImMin(item_rect.Max.x, column->MaxX);
+                    }
+            const bool rect_overlap_curr = bs->BoxSelectRectCurr.Overlaps(item_rect);
+            const bool rect_overlap_prev = bs->BoxSelectRectPrev.Overlaps(item_rect);
             if ((rect_overlap_curr && !rect_overlap_prev && !selected) || (rect_overlap_prev && !rect_overlap_curr))
             {
                 if (storage->LastSelectionSize <= 0 && bs->IsStartedSetNavIdOnce)
