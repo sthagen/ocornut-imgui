@@ -111,6 +111,8 @@ Other Changes:
   - Detect and report error when calling End() instead of EndPopup() on a popup. (#9351)
   - Child windows with only ImGuiChildFlags_AutoResizeY flag keep using the proportional
     default ItemWidth. (#9355)
+  - Using mouse wheel to scroll takes and keeps ownership of the corresponding keys
+    (ImGuiKey_MouseWheelX/Y) while a wheeling window is locked. (#2604, #3795)
 - InputInt, InputFloat, InputScalar: reinstated ImGuiInputTextFlags_EnterReturnsTrue
   support which was removed in 1.91.4. (#8665, #9299, #8065, #3946, #6284, #9117)
   - Fixed the fact that it didn't return true when validating same value.
@@ -150,6 +152,14 @@ Other Changes:
     items straying out of columns boundaries. (#7994, #2221)
   - Box-Select + Tables: fixed an issue when calling `BeginMultiSelect()` in a table
     before layout has been locked (first row or headers row submitted). (#8250)
+- Inputs:
+  - SetItemKeyOwner(): return true if ownership has been requested, which typically
+    needs to to checked for gating further tests. This is important as the function
+    may fail. (#456, #2637, #2620, #2891, #3370, #3724, #4828, #5108, #5242, #5641)
+  - SetItemKeyOwner(): does not set ownership is key is already taken. Effectively
+    this makes using `SetItemKeyOwner(ImGuiKey_MouseWheelY)` over an item work as
+    expected while not having item react if a scroll wheel is actively in progress.
+    May be subject to further redesign, e.g. conditional flags. Feedback welcome!
 - Style:
   - Fixed vertical scrollbar top coordinates when using thick borders on windows
     with no title bar and no menu bar. (#9366)

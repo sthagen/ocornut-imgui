@@ -875,9 +875,9 @@ static void ExampleImageViewer_DrawCanvas(ExampleImageViewerData* data, ImVec2 c
     data->ViewReset = false;
 
     // Handle inputs
-    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY); // FIXME: Not while scrolling?
-    if (ImGui::IsItemHovered() && io.MouseWheel != 0.0f)
-        data->Zoom = IM_CLAMP(data->Zoom * (1.0f + io.MouseWheel * 0.10f), data->ZoomMin, data->ZoomMax);
+    if (ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY))
+        if (io.MouseWheel != 0.0f)
+            data->Zoom = IM_CLAMP(data->Zoom * (1.0f + io.MouseWheel * 0.10f), data->ZoomMin, data->ZoomMax);
     float zoom = data->Zoom; // (float)(int)ViewZoom;
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0))
     {
