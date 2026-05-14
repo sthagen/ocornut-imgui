@@ -1,4 +1,4 @@
-// dear imgui, v1.92.8 WIP
+// dear imgui, v1.92.8
 // (main code and documentation)
 
 // Help:
@@ -396,7 +396,6 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
  You can read releases logs https://github.com/ocornut/imgui/releases for more details.
 
  - 2026/05/07 (1.92.8) - DrawList: swapped the last two arguments of AddRect(), AddPolyline(), PathStroke().
-                         Recap:
                          - Before: void ImDrawList::AddRect(ImVec2 p_min, ImVec2 p_max, ImU32 col, float rounding = 0.0f, ImDrawFlags flags = 0, float thickness = 1.0f);
                          - After:  void ImDrawList::AddRect(ImVec2 p_min, ImVec2 p_max, ImU32 col, float rounding = 0.0f, float thickness = 1.0f, ImDrawFlags flags = 0);
                          - Before: void ImDrawList::AddPolyline(const ImVec2* points, int num_points, ImU32 col, ImDrawFlags flags, float thickness);
@@ -405,18 +404,19 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
                          - After:  void ImDrawList::PathStroke(ImU32 col, float thickness = 1.0f, ImDrawFlags flags = 0);
                          Added inline redirection functions when IMGUI_DISABLE_OBSOLETE_FUNCTIONS is off.
                          Marked the old functions are =delete when IMGUI_DISABLE_OBSOLETE_FUNCTIONS is on, to allow for better type-checking.
-                         This is not an easy change but it makes ImDrawList function signatures consistent.
-                         As we are aiming to add flags and features to variety of ImDrawList functions, that consistency will become particularly important.
-                         The new order is also more convenient as 'flags' are less frequently used than 'thickness' in real code.
                          Effectively the typical call site is changing from:
-                           - Before:  window->DrawList->AddRect(p_min, p_max, color, rounding, ImDrawFlags_None, border_size);
-                           - After:   window->DrawList->AddRect(p_min, p_max, color, rounding, border_size);
+                         - Before:  window->DrawList->AddRect(p_min, p_max, color, rounding, ImDrawFlags_None, border_size);
+                         - After:   window->DrawList->AddRect(p_min, p_max, color, rounding, border_size);
                          Notes:
-                         - As a general policy in Dear ImGui, all our flags default to 0 so ImDrawFlags_None was likely written 0 in some call sites.
-                         - Users of C++ and other languages with type-checking should be notified at compile-time of any mistakes.
+                         - Users of C++ and other languages with type-checking will be notified at compile-time of any mistakes.
                          - Users of high-level bindings or languages with no type-checking will be notified at runtime via an assert for invalid flags value.
+                           If you are a binding maintainer consider doing something to facilitate transition or error detection.
+                         - This is perhaps the worst breaking change in our history :( but it makes ImDrawList function signatures consistent.
+                           As we are aiming to add flags and features to variety of ImDrawList functions, that consistency becomes more important.
+                           The new order is also more convenient as `flags` are less frequently used than `thickness` in real code.
+                         - As a general policy in Dear ImGui, all our flags default to 0 so ImDrawFlags_None was likely written 0 in some call sites.
                          - Consider adding `#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS` in your imconfig.h, even temporarily, to clean up legacy code.
- - 2026/04/23 (1.92.8) - Obsoleted `ImDrawCallback_ResetRenderState` in favor of using `ImGui::GetPlatformIO().DrawCallback_ResetRenderState`, which is part of our new standard draw callbacks. (#9378)
+ - 2026/04/23 (1.92.8) - DrawList: obsoleted `ImDrawCallback_ResetRenderState` in favor of using `ImGui::GetPlatformIO().DrawCallback_ResetRenderState`, which is part of our new standard draw callbacks. (#9378)
  - 2026/04/22 (1.92.8) - Backends: Vulkan: redesigned to use separate ImageView + Sampler instead of Combined Image Sampler.
                          - When registering custom textures: changed ImGui_ImplVulkan_AddTexture() signature to remove Sampler.
                          - When creating your own descriptor pool (instead of letting backend creates its own): need at least IMGUI_IMPL_VULKAN_MINIMUM_SAMPLED_IMAGE_POOL_SIZE descriptors of type VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE + IMGUI_IMPL_VULKAN_MINIMUM_SAMPLER_POOL_SIZE descriptors of type VK_DESCRIPTOR_TYPE_SAMPLER.
@@ -3781,6 +3781,7 @@ const char* ImGui::GetStyleColorName(ImGuiCol idx)
     case ImGuiCol_ScrollbarGrabHovered: return "ScrollbarGrabHovered";
     case ImGuiCol_ScrollbarGrabActive: return "ScrollbarGrabActive";
     case ImGuiCol_CheckMark: return "CheckMark";
+    case ImGuiCol_CheckboxSelectedBg: return "CheckboxSelectedBg";
     case ImGuiCol_SliderGrab: return "SliderGrab";
     case ImGuiCol_SliderGrabActive: return "SliderGrabActive";
     case ImGuiCol_Button: return "Button";
@@ -4719,7 +4720,8 @@ void ImGui::SetActiveID(ImGuiID id, ImGuiWindow* window)
     g.ActiveIdIsJustActivated = (g.ActiveId != id);
     if (g.ActiveIdIsJustActivated)
     {
-        IMGUI_DEBUG_LOG_ACTIVEID("SetActiveID() old:0x%08X (window \"%s\") -> new:0x%08X (window \"%s\")\n", g.ActiveId, g.ActiveIdWindow ? g.ActiveIdWindow->Name : "", id, window ? window->Name : "");
+        IMGUI_DEBUG_LOG_ACTIVEID("SetActiveID() 0x%08X in \"%s\"%*s(previously 0x%08X in \"%s\")\n", id, window ? window->Name : "",
+            ImMax(0, 20 - (int)(window ? strlen(window->Name) : 0)), "", g.ActiveId, g.ActiveIdWindow ? g.ActiveIdWindow->Name : "");
         g.ActiveIdTimer = 0.0f;
         g.ActiveIdHasBeenPressedBefore = false;
         g.ActiveIdHasBeenEditedBefore = false;
@@ -5755,7 +5757,7 @@ void ImGui::NewFrame()
     g.CurrentWindowStack.resize(0);
     g.BeginPopupStack.resize(0);
     g.ItemFlagsStack.resize(0);
-    g.ItemFlagsStack.push_back(ImGuiItemFlags_AutoClosePopups); // Default flags
+    g.ItemFlagsStack.push_back(ImGuiItemFlags_Default_); // Default flags
     g.CurrentItemFlags = g.ItemFlagsStack.back();
     g.GroupStack.resize(0);
 
@@ -12487,6 +12489,17 @@ bool ImGui::BeginPopupMenuEx(ImGuiID id, const char* label, ImGuiWindowFlags ext
         return false;
     }
 
+    // As we bypass BeginChild(), set ImGuiChildFlags_AlwaysAutoResize as it is checked independently from ImGuiWindowFlags_AlwaysAutoResize for now (see #9355)
+    // Ideally we should remove setting ImGuiWindowFlags_AlwaysAutoResize in BeginChild().
+    if ((extra_window_flags & ImGuiWindowFlags_ChildWindow) && (extra_window_flags & ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        if (g.NextWindowData.HasFlags & ImGuiNextWindowDataFlags_HasChildFlags)
+            g.NextWindowData.ChildFlags |= ImGuiChildFlags_AlwaysAutoResize;
+        else
+            g.NextWindowData.ChildFlags = ImGuiChildFlags_AlwaysAutoResize;
+        g.NextWindowData.HasFlags |= ImGuiNextWindowDataFlags_HasChildFlags;
+    }
+
     char name[128];
     IM_ASSERT(extra_window_flags & ImGuiWindowFlags_ChildMenu);
     ImFormatString(name, IM_COUNTOF(name), "%s###Menu_%02d", label, g.BeginMenuDepth); // Recycle windows based on depth
@@ -18348,7 +18361,7 @@ void ImGui::ShowFontSelector(const char* label)
             "- Load additional fonts with io.Fonts->AddFontXXX() functions.\n"
             "- The font atlas is built when calling io.Fonts->GetTexDataAsXXXX() or io.Fonts->Build().\n"
             "- Read FAQ and docs/FONTS.md for more details.\n"
-            "- If you need to add/remove fonts at runtime (e.g. for DPI change), do it before calling NewFrame().");
+            "- Legacy backend: if you need to add/remove fonts at runtime (e.g. for DPI change), do it before calling NewFrame().");
 }
 #endif // #if !defined(IMGUI_DISABLE_DEMO_WINDOWS) || !defined(IMGUI_DISABLE_DEBUG_TOOLS)
 

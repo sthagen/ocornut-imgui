@@ -1,4 +1,4 @@
-// dear imgui, v1.92.8 WIP
+// dear imgui, v1.92.8
 // (internal structures/api)
 
 // You may use this file to debug, understand or extend Dear ImGui features but we don't provide any guarantee of forward compatibility.
@@ -1211,6 +1211,7 @@ struct IMGUI_API ImGuiMenuColumns
 };
 
 // Internal temporary state for deactivating InputText() instances.
+// Store as part of ImGuiDeactivatedItemData?
 struct IMGUI_API ImGuiInputTextDeactivatedState
 {
     ImGuiID            ID;              // widget id owning the text state (which just got deactivated)
@@ -1456,6 +1457,7 @@ struct ImGuiPtrOrIndex
 };
 
 // Data used by IsItemDeactivated()/IsItemDeactivatedAfterEdit() functions
+// Also see ImGuiInputTextDeactivatedState which is an extension for this for InputText()
 struct ImGuiDeactivatedItemData
 {
     ImGuiID     ID;

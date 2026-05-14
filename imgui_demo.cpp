@@ -1,4 +1,4 @@
-// dear imgui, v1.92.8 WIP
+// dear imgui, v1.92.8
 // (demo code)
 
 // Help:
@@ -714,7 +714,7 @@ static void DemoWindowMenuBar(ImGuiDemoWindowData* demo_data)
                 ImGui::Checkbox("Highlight ID Conflicts", &io.ConfigDebugHighlightIdConflicts);
                 ImGui::EndDisabled();
                 ImGui::Checkbox("Assert on error recovery", &io.ConfigErrorRecoveryEnableAssert);
-                ImGui::TextDisabled("(see Demo->Configuration for details & more)");
+                ImGui::TextDisabled("(see Demo->Configuration for more)");
                 ImGui::EndMenu();
             }
             ImGui::MenuItem("Debug Log", NULL, &demo_data->ShowDebugLog, has_debug_tools);
@@ -8903,7 +8903,7 @@ static void ShowExampleMenuFile()
         IMGUI_DEMO_MARKER("Examples/Menu/Options");
         static bool enabled = true;
         ImGui::MenuItem("Enabled", "", &enabled);
-        ImGui::BeginChild("child", ImVec2(0, 60), ImGuiChildFlags_Borders);
+        ImGui::BeginChild("child", ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 5.0f), ImGuiChildFlags_Borders);
         for (int i = 0; i < 10; i++)
             ImGui::Text("Scrolling Text %d", i);
         ImGui::EndChild();
