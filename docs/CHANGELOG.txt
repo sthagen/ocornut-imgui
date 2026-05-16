@@ -36,6 +36,22 @@ HOW TO UPDATE?
 - Please report any issue!
 
 -----------------------------------------------------------------------
+ VERSION 1.92.9 WIP (In Progress)
+-----------------------------------------------------------------------
+
+Breaking Changes:
+
+Other Changes:
+
+- Windows:
+  - Clicking on a window's empty-space to move/focus a window checks
+    for lack of mouse button ownership. This gives an additional opportunity
+    for user code to bypass it without using a clickable item. (#9382)
+  - Clicking on a window's empty-space to move/focus a window checks
+    for lack of queued focus request. (#9382)
+
+
+-----------------------------------------------------------------------
  VERSION 1.92.8 (Released 2026-05-12)
 -----------------------------------------------------------------------
 
