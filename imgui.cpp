@@ -416,6 +416,8 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
                            The new order is also more convenient as `flags` are less frequently used than `thickness` in real code.
                          - As a general policy in Dear ImGui, all our flags default to 0 so ImDrawFlags_None was likely written 0 in some call sites.
                          - Consider adding `#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS` in your imconfig.h, even temporarily, to clean up legacy code.
+ - 2026/05/07 (1.92.8) - DrawList: changed value of `ImDrawFlags_Closed`. It was previously advertised as "always == 1" when introduced in 1.82 (2021/02), in order to facilitate backward compatibility with the legacy `bool closed` flag.
+                         This guarantee has been removed. The bit is reserved and `AddPolyline()`, `PathStroke()` will assert when it is used.
  - 2026/04/23 (1.92.8) - DrawList: obsoleted `ImDrawCallback_ResetRenderState` in favor of using `ImGui::GetPlatformIO().DrawCallback_ResetRenderState`, which is part of our new standard draw callbacks. (#9378)
  - 2026/04/22 (1.92.8) - Backends: Vulkan: redesigned to use separate ImageView + Sampler instead of Combined Image Sampler.
                          - When registering custom textures: changed ImGui_ImplVulkan_AddTexture() signature to remove Sampler.
@@ -6197,11 +6199,10 @@ ImVec2 ImGui::CalcTextSize(const char* text, const char* text_end, bool hide_tex
     ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, wrap_width, text, text_display_end, NULL);
 
     // Round
-    // FIXME: This has been here since Dec 2015 (7b0bf230) but down the line we want this out.
-    // FIXME: Investigate using ceilf or e.g.
-    // - https://git.musl-libc.org/cgit/musl/tree/src/math/ceilf.c
-    // - https://embarkstudios.github.io/rust-gpu/api/src/libm/math/ceilf.rs.html
-    text_size.x = IM_TRUNC(text_size.x + 0.99999f);
+    // FIXME: This has been here since Dec 2015 (7b0bf230 then 4622fa4b6) but down the line we want this out. See #791.
+    // Investigate using ceilf or e.g. https://git.musl-libc.org/cgit/musl/tree/src/math/ceilf.c, https://embarkstudios.github.io/rust-gpu/api/src/libm/math/ceilf.rs.html
+    // The problem is that ceilf() has a measurable cost. Not high, but measurable!
+    text_size.x = IM_TRUNC(text_size.x + 0.999f);
 
     return text_size;
 }
