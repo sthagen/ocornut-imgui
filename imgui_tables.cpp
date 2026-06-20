@@ -45,7 +45,6 @@ Index of this file:
 // - TableSetupScrollFreeze()                   user submit scroll freeze information (optional)
 //-----------------------------------------------------------------------------
 // - TableUpdateLayout() [Internal]             followup to BeginTable(): setup everything: widths, columns positions, clipping rectangles. Automatically called by the FIRST call to TableNextRow() or TableHeadersRow().
-//    | TableLoadSettingsForColumns()           - on settings load
 //    | TableApplyQueuedRequests()              - apply queued resizing/reordering/hiding requests
 //    | - TableSetColumnWidth()                 - apply resizing width (for mouse resize, often requested by previous frame)
 //    |    - TableUpdateColumnsWeightFromWidth()- recompute columns weights (of stretch columns) from their respective width
@@ -4111,7 +4110,7 @@ void ImGui::TableGcCompactTransientBuffers(ImGuiTableTempData* temp_data)
     temp_data->LastTimeActive = -1.0f;
 }
 
-// Compact and remove unused settings data (currently only used by TestEngine)
+// Compact and remove unused or resize settings data (only TestEngine mark unused, but resizing table down can lead to compaction)
 void ImGui::TableGcCompactSettings()
 {
     ImGuiContext& g = *GImGui;
@@ -4127,6 +4126,9 @@ void ImGui::TableGcCompactSettings()
         if (settings->ID != 0)
             memcpy(new_chunk_stream.alloc_chunk(TableSettingsCalcChunkSize(settings->ColumnsCount)), settings, TableSettingsCalcChunkSize(settings->ColumnsCount));
     g.SettingsTables.swap(new_chunk_stream);
+    for (int table_n = 0; table_n < g.Tables.GetMapSize(); table_n++)
+        if (ImGuiTable* table = g.Tables.TryGetMapData(table_n))
+            table->SettingsOffset = -1;
 }
 
 
@@ -4255,7 +4257,7 @@ void ImGui::DebugNodeTableSettings(ImGuiTableSettings* settings, ImGuiTable* tab
 #else // #ifndef IMGUI_DISABLE_DEBUG_TOOLS
 
 void ImGui::DebugNodeTable(ImGuiTable*) {}
-void ImGui::DebugNodeTableSettings(ImGuiTableSettings*, ImGuiTable* table) {}
+void ImGui::DebugNodeTableSettings(ImGuiTableSettings*, ImGuiTable*) {}
 
 #endif
 
