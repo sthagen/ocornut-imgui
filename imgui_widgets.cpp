@@ -5173,7 +5173,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             if (!is_new_line)
             {
                 validated = clear_active_id = true;
-                if (io.ConfigInputTextEnterKeepActive && !is_multiline)
+                if (io.ConfigInputTextEnterKeepActive && !is_multiline && !is_ctrl_enter && !is_shift_enter)
                 {
                     // Queue reactivation, so that e.g. IsItemDeactivatedAfterEdit() will work. (#9001)
                     state->SelectAll(); // No need to scroll
@@ -5751,7 +5751,6 @@ void ImGui::DebugNodeInputTextState(ImGuiInputTextState* state)
 // - RenderColorRectWithAlphaCheckerboard() [Internal]
 // - ColorPicker4()
 // - ColorButton()
-// - SetColorEditOptions()
 // - ColorTooltip() [Internal]
 // - ColorEditOptionsPopup() [Internal]
 // - ColorPickerOptionsPopup() [Internal]
@@ -5823,14 +5822,14 @@ bool ImGui::ColorEdit4(const char* label, float col[4], ImGuiColorEditFlags flag
 
     // Read stored options
     if (!(flags & ImGuiColorEditFlags_DisplayMask_))
-        flags |= (g.ColorEditOptions & ImGuiColorEditFlags_DisplayMask_);
+        flags |= (g.IO.ConfigColorEditFlags & ImGuiColorEditFlags_DisplayMask_);
     if (!(flags & ImGuiColorEditFlags_DataTypeMask_))
-        flags |= (g.ColorEditOptions & ImGuiColorEditFlags_DataTypeMask_);
+        flags |= (g.IO.ConfigColorEditFlags & ImGuiColorEditFlags_DataTypeMask_);
     if (!(flags & ImGuiColorEditFlags_PickerMask_))
-        flags |= (g.ColorEditOptions & ImGuiColorEditFlags_PickerMask_);
+        flags |= (g.IO.ConfigColorEditFlags & ImGuiColorEditFlags_PickerMask_);
     if (!(flags & ImGuiColorEditFlags_InputMask_))
-        flags |= (g.ColorEditOptions & ImGuiColorEditFlags_InputMask_);
-    flags |= (g.ColorEditOptions & ~(ImGuiColorEditFlags_DisplayMask_ | ImGuiColorEditFlags_DataTypeMask_ | ImGuiColorEditFlags_PickerMask_ | ImGuiColorEditFlags_InputMask_));
+        flags |= (g.IO.ConfigColorEditFlags & ImGuiColorEditFlags_InputMask_);
+    flags |= (g.IO.ConfigColorEditFlags & ~(ImGuiColorEditFlags_DisplayMask_ | ImGuiColorEditFlags_DataTypeMask_ | ImGuiColorEditFlags_PickerMask_ | ImGuiColorEditFlags_InputMask_));
     IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_DisplayMask_)); // Check that only 1 is selected
     IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_InputMask_));   // Check that only 1 is selected
 
@@ -6099,13 +6098,13 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
 
     // Read stored options
     if (!(flags & ImGuiColorEditFlags_PickerMask_))
-        flags |= ((g.ColorEditOptions & ImGuiColorEditFlags_PickerMask_) ? g.ColorEditOptions : ImGuiColorEditFlags_DefaultOptions_) & ImGuiColorEditFlags_PickerMask_;
+        flags |= ((g.IO.ConfigColorEditFlags & ImGuiColorEditFlags_PickerMask_) ? g.IO.ConfigColorEditFlags : ImGuiColorEditFlags_DefaultOptions_) & ImGuiColorEditFlags_PickerMask_;
     if (!(flags & ImGuiColorEditFlags_InputMask_))
-        flags |= ((g.ColorEditOptions & ImGuiColorEditFlags_InputMask_) ? g.ColorEditOptions : ImGuiColorEditFlags_DefaultOptions_) & ImGuiColorEditFlags_InputMask_;
+        flags |= ((g.IO.ConfigColorEditFlags & ImGuiColorEditFlags_InputMask_) ? g.IO.ConfigColorEditFlags : ImGuiColorEditFlags_DefaultOptions_) & ImGuiColorEditFlags_InputMask_;
     IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_PickerMask_)); // Check that only 1 is selected
     IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_InputMask_));  // Check that only 1 is selected
     if (!(flags & ImGuiColorEditFlags_NoOptions))
-        flags |= (g.ColorEditOptions & ImGuiColorEditFlags_AlphaBar);
+        flags |= (g.IO.ConfigColorEditFlags & ImGuiColorEditFlags_AlphaBar);
 
     // Setup
     int components = (flags & ImGuiColorEditFlags_NoAlpha) ? 3 : 4;
@@ -6127,10 +6126,11 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
     ImVec2 wheel_center(picker_pos.x + (sv_picker_size + bars_width)*0.5f, picker_pos.y + sv_picker_size * 0.5f);
 
     // Note: the triangle is displayed rotated with triangle_pa pointing to Hue, but most coordinates stays unrotated for logic.
+    const bool triangle_rotate = (flags & ImGuiColorEditFlags_PickerNoRotate) == 0;
     float triangle_r = wheel_r_inner - (int)(sv_picker_size * 0.027f);
-    ImVec2 triangle_pa = ImVec2(triangle_r, 0.0f); // Hue point.
-    ImVec2 triangle_pb = ImVec2(triangle_r * -0.5f, triangle_r * -0.866025f); // Black point.
-    ImVec2 triangle_pc = ImVec2(triangle_r * -0.5f, triangle_r * +0.866025f); // White point.
+    ImVec2 triangle_pa = triangle_rotate ? ImVec2(triangle_r, 0.0f)                         : ImVec2(triangle_r * +0.866f, triangle_r * +0.5f); // Hue point.
+    ImVec2 triangle_pb = triangle_rotate ? ImVec2(triangle_r * -0.5f, triangle_r * -0.866f) : ImVec2(0.0f, -triangle_r);                        // Black point.
+    ImVec2 triangle_pc = triangle_rotate ? ImVec2(triangle_r * -0.5f, triangle_r * +0.866f) : ImVec2(triangle_r * -0.866f, triangle_r * +0.5f); // White point.
 
     float H = col[0], S = col[1], V = col[2];
     float R = col[0], G = col[1], B = col[2];
@@ -6165,8 +6165,8 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
                     H += 1.0f;
                 value_changed = value_changed_h = true;
             }
-            float cos_hue_angle = ImCos(-H * 2.0f * IM_PI);
-            float sin_hue_angle = ImSin(-H * 2.0f * IM_PI);
+            float cos_hue_angle = triangle_rotate ? ImCos(-H * 2.0f * IM_PI) : 1.0f;
+            float sin_hue_angle = triangle_rotate ? ImSin(-H * 2.0f * IM_PI) : 0.0f;
             if (ImTriangleContainsPoint(triangle_pa, triangle_pb, triangle_pc, ImRotate(initial_off, cos_hue_angle, sin_hue_angle)))
             {
                 // Interacting with SV triangle
@@ -6375,6 +6375,11 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
         draw_list->AddCircleFilled(hue_cursor_pos, hue_cursor_rad, hue_color32, hue_cursor_segments);
         draw_list->AddCircle(hue_cursor_pos, hue_cursor_rad + 1, col_midgrey, hue_cursor_segments);
         draw_list->AddCircle(hue_cursor_pos, hue_cursor_rad, col_white, hue_cursor_segments);
+        if (triangle_rotate == false)
+        {
+            cos_hue_angle = 1.0f;
+            sin_hue_angle = 0.0f;
+        }
 
         // Render SV triangle (rotated according to hue)
         ImVec2 tra = wheel_center + ImRotate(triangle_pa, cos_hue_angle, sin_hue_angle);
@@ -6525,25 +6530,18 @@ bool ImGui::ColorButton(const char* desc_id, const ImVec4& col, ImGuiColorEditFl
     return pressed;
 }
 
-// Initialize/override default color options
-// FIXME: Could be moved to a simple IO field.
+#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+// This allowed passing 0 to set default, whereas NewFrame() will assert if one of missing. Abide to old logic.
 void ImGui::SetColorEditOptions(ImGuiColorEditFlags flags)
 {
     ImGuiContext& g = *GImGui;
-    if ((flags & ImGuiColorEditFlags_DisplayMask_) == 0)
-        flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_DisplayMask_;
-    if ((flags & ImGuiColorEditFlags_DataTypeMask_) == 0)
-        flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_DataTypeMask_;
-    if ((flags & ImGuiColorEditFlags_PickerMask_) == 0)
-        flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_PickerMask_;
-    if ((flags & ImGuiColorEditFlags_InputMask_) == 0)
-        flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_InputMask_;
-    IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_DisplayMask_));    // Check only 1 option is selected
-    IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_DataTypeMask_));   // Check only 1 option is selected
-    IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_PickerMask_));     // Check only 1 option is selected
-    IM_ASSERT(ImIsPowerOfTwo(flags & ImGuiColorEditFlags_InputMask_));      // Check only 1 option is selected
-    g.ColorEditOptions = flags;
+    if ((flags & ImGuiColorEditFlags_DisplayMask_) == 0)    { flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_DisplayMask_; }
+    if ((flags & ImGuiColorEditFlags_DataTypeMask_) == 0)   { flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_DataTypeMask_; }
+    if ((flags & ImGuiColorEditFlags_PickerMask_) == 0)     { flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_PickerMask_; }
+    if ((flags & ImGuiColorEditFlags_InputMask_) == 0)      { flags |= ImGuiColorEditFlags_DefaultOptions_ & ImGuiColorEditFlags_InputMask_; }
+    g.IO.ConfigColorEditFlags = flags;
 }
+#endif
 
 // Note: only access 3 floats if ImGuiColorEditFlags_NoAlpha flag is set.
 void ImGui::ColorTooltip(const char* text, const float* col, ImGuiColorEditFlags flags)
@@ -6591,7 +6589,7 @@ void ImGui::ColorEditOptionsPopup(const float* col, ImGuiColorEditFlags flags)
 
     ImGuiContext& g = *GImGui;
     PushItemFlag(ImGuiItemFlags_NoMarkEdited, true);
-    ImGuiColorEditFlags opts = g.ColorEditOptions;
+    ImGuiColorEditFlags opts = g.IO.ConfigColorEditFlags;
     if (allow_opt_inputs)
     {
         if (RadioButton("RGB", (opts & ImGuiColorEditFlags_DisplayRGB) != 0)) opts = (opts & ~ImGuiColorEditFlags_DisplayMask_) | ImGuiColorEditFlags_DisplayRGB;
@@ -6631,7 +6629,7 @@ void ImGui::ColorEditOptionsPopup(const float* col, ImGuiColorEditFlags flags)
         EndPopup();
     }
 
-    g.ColorEditOptions = opts;
+    g.IO.ConfigColorEditFlags = opts;
     PopItemFlag();
     EndPopup();
 }
@@ -6659,7 +6657,7 @@ void ImGui::ColorPickerOptionsPopup(const float* ref_col, ImGuiColorEditFlags fl
             if (picker_type == 1) picker_flags |= ImGuiColorEditFlags_PickerHueWheel;
             ImVec2 backup_pos = GetCursorScreenPos();
             if (Selectable("##selectable", false, 0, picker_size)) // By default, Selectable() is closing popup
-                g.ColorEditOptions = (g.ColorEditOptions & ~ImGuiColorEditFlags_PickerMask_) | (picker_flags & ImGuiColorEditFlags_PickerMask_);
+                g.IO.ConfigColorEditFlags = (g.IO.ConfigColorEditFlags & ~ImGuiColorEditFlags_PickerMask_) | (picker_flags & ImGuiColorEditFlags_PickerMask_);
             SetCursorScreenPos(backup_pos);
             ImVec4 previewing_ref_col;
             memcpy(&previewing_ref_col, ref_col, sizeof(float) * ((picker_flags & ImGuiColorEditFlags_NoAlpha) ? 3 : 4));
@@ -6671,7 +6669,7 @@ void ImGui::ColorPickerOptionsPopup(const float* ref_col, ImGuiColorEditFlags fl
     if (allow_opt_alpha_bar)
     {
         if (allow_opt_picker) Separator();
-        CheckboxFlags("Alpha Bar", &g.ColorEditOptions, ImGuiColorEditFlags_AlphaBar);
+        CheckboxFlags("Alpha Bar", &g.IO.ConfigColorEditFlags, ImGuiColorEditFlags_AlphaBar);
     }
     PopItemFlag();
     EndPopup();
@@ -7489,6 +7487,11 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
 
     if (selected != was_selected)
         g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_ToggledSelection;
+    if (g.ActiveId == id && g.ActiveIdIsJustActivated)
+    {
+        g.ActiveIdWasSelected = was_selected;
+        g.ActiveIdWasSoleSelected = was_selected && (!is_multi_select || g.CurrentMultiSelect->IsSoleOrUnknownSelectionSize);
+    }
 
     // Render
     if (is_visible)
@@ -8116,6 +8119,7 @@ ImGuiMultiSelectIO* ImGui::BeginMultiSelect(ImGuiMultiSelectFlags flags, int sel
             storage->LastSelectionSize = 0;
     }
     ms->LoopRequestSetAll = request_select_all ? 1 : request_clear ? 0 : -1;
+    ms->IsSoleOrUnknownSelectionSize = (storage->LastSelectionSize == 1) || (storage->LastSelectionSize == -1);
     //ms->PrevSubmittedItem = ImGuiSelectionUserData_Invalid;
 
     if (g.DebugLogFlags & ImGuiDebugLogFlags_EventSelection)
@@ -9382,7 +9386,7 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
     // This is only done for items for the menu set and not the full parent window.
     const bool menuset_is_open = IsRootOfOpenMenuSet();
     if (menuset_is_open)
-        PushItemFlag(ImGuiItemFlags_NoWindowHoverableCheck, true);
+        g.NextItemData.ItemFlags |= ImGuiItemFlags_NoWindowHoverableCheck;
 
     // The reference position stored in popup_pos will be used by Begin() to find a suitable position for the child menu,
     // However the final position is going to be different! It is chosen by FindBestWindowPosForPopup().
@@ -9445,8 +9449,6 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
     }
 
     const bool hovered = (g.HoveredId == id) && enabled && !g.NavHighlightItemUnderNav;
-    if (menuset_is_open)
-        PopItemFlag();
 
     bool want_open = false;
     bool want_open_nav_init = false;
@@ -9609,7 +9611,7 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
     // See BeginMenuEx() for comments about this.
     const bool menuset_is_open = IsRootOfOpenMenuSet();
     if (menuset_is_open)
-        PushItemFlag(ImGuiItemFlags_NoWindowHoverableCheck, true);
+        g.NextItemData.ItemFlags |= ImGuiItemFlags_NoWindowHoverableCheck;
 
     // We've been using the equivalent of ImGuiSelectableFlags_SetNavIdOnHover on all Selectable() since early Nav system days (commit 43ee5d73),
     // but I am unsure whether this should be kept at all. For now moved it to be an opt-in feature used by menus only.
@@ -9680,8 +9682,6 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
     if (!enabled)
         EndDisabled();
     PopID();
-    if (menuset_is_open)
-        PopItemFlag();
 
     return pressed;
 }
