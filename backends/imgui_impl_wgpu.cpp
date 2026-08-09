@@ -449,7 +449,7 @@ static void ImGui_ImplWGPU_SetupRenderState(ImDrawData* draw_data, WGPURenderPas
     wgpuRenderPassEncoderSetBindGroup(ctx, 0, bd->renderResources.CommonBindGroupLinear, 0, nullptr);
 
     // Setup blend factor
-    WGPUColor blend_color = { 0.f, 0.f, 0.f, 0.f };
+    WGPUColor blend_color = { 0.0f, 0.0f, 0.0f, 0.0f };
     wgpuRenderPassEncoderSetBlendConstant(ctx, &blend_color);
 }
 
@@ -844,8 +844,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects()
 
     ImGui_ImplWGPU_CreateUniformBuffer();
 
-    // Create samplers (Linear/Nearest)
-    // (Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling)
+    // Create samplers (Linear/Nearest) (bilinear sampling is required)
     WGPUSamplerDescriptor sampler_desc = {};
     sampler_desc.addressModeU = WGPUAddressMode_ClampToEdge;
     sampler_desc.addressModeV = WGPUAddressMode_ClampToEdge;

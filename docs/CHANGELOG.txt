@@ -36,10 +36,63 @@ HOW TO UPDATE?
 - Please report any issue!
 
 -----------------------------------------------------------------------
+ VERSION 1.93.0 WIP (In Progress)
+-----------------------------------------------------------------------
+
+Breaking Changes:
+
+- Style: obsoleted `style.CurveTessellationTol (default 1.25)` which was in Pixels² unit in
+  favor of `style.CurveTesselationMaxError` (default 1.12)` which is in Pixels unit. It is
+  easier to tweak + this allows us to easily scale error threshold on high density screens.
+  - style.CurveTesselationMaxError == sqrf(style.CurveTessellationTol).
+- Backends:
+  - DirectX12: Removed support for legacy `ImGui_ImplDX12_Init()` signature, which was
+    obsoleted in 1.91.6 (December 2014), because it needed to forcefully disable support
+    for `ImGuiBackendFlags_RendererHasTextures`. Use the new signature! (#9487)
+
+Other Changes:
+
+- Fonts:
+  - Reworked `AddFontDefault()` to use `io.DisplayFrameBufferScale` as part of the heuristic
+    to select `AddFontDefaultVector()` by default, effectively using ProggyForever instead of
+    ProggyClean on most Apple/Retina setups by default.
+- ImDrawList:
+  - Per-viewport FramebufferScale for Apple/Retina screen is applied to draw lists:
+    - AA Fringe is scaled accordingly.
+    - Circle and Curves tessellation error are scaled accordingly.
+- Backends:
+  - QNX: added QNX Screen backend. (#9492) [@mgorchak-blackberry]
+  - SDL2: fixed querying framebuffer scale/density when using Metal without
+    going through a SDL_Renderer. (#5592) [@lailoken]
+- Examples:
+  - SDL2+Metal: create Metal context without using a SDL_Renderer.
+  - QNX+OpenGL3, QNX+Vulkan: added QNX Screen examples. (#9492) [@mgorchak-blackberry]
+  - OSX+OpenGL3: added example_apple_opengl3/ (OSX/Cocoa + OpenGL 3.2 Core profile).
+
+
+-----------------------------------------------------------------------
+ VERSION 1.92.9b (Released 2026-07-31)
+-----------------------------------------------------------------------
+
+Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v1.92.9b
+
+Changes:
+
+- DragXXX, SliderXXX: fixed a regression in 1.92.9 where clicking a previously
+  Ctrl+Clicked field would flick it to text edit mode for a frame. (#9476, #701)
+- Tables:
+  - Fixed Y2 position of lower horizontal border (ImGuiTableFlags_BordersOuterH)
+    being off by one pixel when vertical ones are not also enabled. [@thedmd]
+  - Fixed X position of angled borders being off by half a pixel. [@thedmd]
+- ImDrawData: fixed a regression in 1.92.9 where legacy `ImDrawData::CmdListsCount` was always 0.
+  Prefer using `ImDrawData::CmdList.Size` anyway.
+
+
+-----------------------------------------------------------------------
  VERSION 1.92.9 (Released 2026-07-25)
 -----------------------------------------------------------------------
 
-Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v1.92.8
+Decorated log and release notes: https://github.com/ocornut/imgui/releases/tag/v1.92.9
 
 Breaking Changes:
 
@@ -1106,7 +1159,7 @@ Other Changes:
     not available. (#5924, #5562)
   - SDL3+DirectX11: Added SDL3+DirectX11 example. (#8956, #8957) [@tomaz82]
   - Win32+DirectX12: Rework synchronization logic. (#8961) [@RT2Code]
-  - Made examples's main.cpp consistent with returning 1 on error.
+  - Made examples' main.cpp consistent with returning 1 on error.
 
 
 -----------------------------------------------------------------------
