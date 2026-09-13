@@ -30,7 +30,7 @@
 // Library Version
 // (Integer encoded as XYYZZ for use in #if preprocessor conditionals, e.g. '#if IMGUI_VERSION_NUM >= 12345')
 #define IMGUI_VERSION       "1.93.0 WIP"
-#define IMGUI_VERSION_NUM   19295
+#define IMGUI_VERSION_NUM   19297
 #define IMGUI_HAS_TABLE             // Added BeginTable() - from IMGUI_VERSION_NUM >= 18000
 #define IMGUI_HAS_TEXTURES          // Added ImGuiBackendFlags_RendererHasTextures - from IMGUI_VERSION_NUM >= 19198
 
@@ -1271,6 +1271,17 @@ enum ImGuiItemFlags_
     ImGuiItemFlags_LiveEditOnInputText      = 1 << 7,   // true     // InputText: apply keyboard edits to backing value while typing. Otherwise, edits are applied when validating, tabbing out or losing focus.
     ImGuiItemFlags_LiveEditOnInputScalar    = 1 << 8,   // false    // DragXXX, SliderXXX, InputScalar: apply keyboard edits to backing value while typing. Otherwise, edits are applied when validating, tabbing out or losing focus.
     ImGuiItemFlags_LiveEditOnInput          = ImGuiItemFlags_LiveEditOnInputText | ImGuiItemFlags_LiveEditOnInputScalar,
+
+    //---------------------------------------------------------------------------------
+    // [BETA] MixedValue mode used to represent a mixed/indeterminate state, typically for multi-selection.
+    // - Replace value display with "-" or a custom label.
+    // - Enter key validation apply an edit and return true even if value hasn't changed (in order to apply to all).
+    // - Supported by selected widgets: Checkbox, RadioButton, Sliders, Drags, Inputs, Combo.
+    // - Note: InputText-side Undo cannot be reliably combined with MixedValue + LiveEdit On:
+    //   - Both the initial edit and subsequent undo/revert will typically make your app code write to all backing objects.
+    //   - If you use MixedMode and the simplest solution is to ensure LiveEdit is off but widgets where this applies.
+    //---------------------------------------------------------------------------------
+    ImGuiItemFlags_MixedValue               = 1 << 9,   // false    // [BETA] Represent a mixed/indeterminate value. Replace value label with "-" and apply edits on validation.
 };
 
 // Flags for ImGui::InputText()
@@ -2384,7 +2395,7 @@ struct ImGuiStyle
     ImVec2      DisplaySafeAreaPadding;     // Apply to every windows, menus, popups, tooltips: amount where we avoid displaying contents. Adjust if you cannot see the edges of your screen (e.g. on a TV where scaling has not been configured).
     float       MouseCursorScale;           // Scale software rendered mouse cursor (when io.MouseDrawCursor is enabled). We apply per-monitor DPI scaling over this scale. May be removed later.
 
-    // Rendering & Tesselation
+    // Rendering & Tessellation
     bool        AntiAliasedLines;           // Enable anti-aliased lines/borders. Disable if you are really tight on CPU/GPU. Latched at the beginning of the frame (copied to ImDrawList).
     bool        AntiAliasedLinesUseTex;     // Enable anti-aliased lines/borders using textures where possible. Require backend to render with bilinear filtering (NOT point/nearest filtering). Latched at the beginning of the frame (copied to ImDrawList).
     bool        AntiAliasedFill;            // Enable anti-aliased edges around filled shapes (rounded rectangles, circles, etc.). Disable if you are really tight on CPU/GPU. Latched at the beginning of the frame (copied to ImDrawList).
