@@ -2785,30 +2785,27 @@ struct ImGuiOnceUponAFrame
     operator bool() const { int current_frame = ImGui::GetFrameCount(); if (RefFrame == current_frame) return false; RefFrame = current_frame; return true; }
 };
 
-// Helper: Parse and apply text filters. In format "aaaaa[,bbbb][,ccccc]"
+// Helper: Parse and apply text filters e.g. 'aaa bbb' (all), 'aaa,bbb' (any), '-aaa' (exclude), '"Hello, world"' (exact sequence)
+struct ImGuiTextFilterItem;
 struct ImGuiTextFilter
 {
     IMGUI_API           ImGuiTextFilter(const char* default_filter = "");
-    IMGUI_API bool      Draw(const char* label = "Filter (inc,-exc)", float width = 0.0f);  // Helper calling InputText+Build
     IMGUI_API bool      PassFilter(const char* text, const char* text_end = NULL) const;
-    IMGUI_API void      Build();
-    void                Clear()          { InputBuf[0] = 0; Build(); }
-    bool                IsActive() const { return !Filters.empty(); }
+    IMGUI_API void      Build();                                        // Update internal data when filter changes
+    inline void         Clear()          { InputBuf[0] = 0; Build(); }  // Clear filter
+    inline bool         IsActive() const { return _Items.Size != 0; }   // Useful if you need e.g. an alternative code-path when there are no filters
 
-    // [Internal]
-    struct ImGuiTextRange
-    {
-        const char*     b;
-        const char*     e;
+    // Helper to call InputText() + Build() when buffer is changed.
+    IMGUI_API bool      Draw(const char* label = "Filter");
+    IMGUI_API bool      DrawWithHint(const char* label = "Filter", const char* hint = "incl -excl");
+#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+    inline bool         Draw(const char* label, float width)            { if (width != 0.0f) ImGui::SetNextItemWidth(width); return Draw(label); }
+#endif
 
-        ImGuiTextRange()                                { b = e = NULL; }
-        ImGuiTextRange(const char* _b, const char* _e)  { b = _b; e = _e; }
-        bool            empty() const                   { return b == e; }
-        IMGUI_API void  split(char separator, ImVector<ImGuiTextRange>* out) const;
-    };
-    char                    InputBuf[256];
-    ImVector<ImGuiTextRange>Filters;
-    int                     CountGrep;
+    // Members
+    char                InputBuf[256];      // User input buffer
+    int                 _CountExclude;      // [Internal] >= 0 count of leading exclude
+    ImVector<ImGuiTextFilterItem> _Items;   // [Internal] Pre-parsed, trimmed, reordered items
 };
 
 // Helper: Growable text buffer for logging/accumulating text
@@ -4114,6 +4111,7 @@ struct ImGuiPlatformIO
     ImDrawCallback  DrawCallback_ResetRenderState;      // Request to reset the graphics/render state.
     ImDrawCallback  DrawCallback_SetSamplerLinear;      // Request backend to set texture sampling to Linear.
     ImDrawCallback  DrawCallback_SetSamplerNearest;     // Request backend to set texture sampling to Nearest/Point.
+    ImDrawCallback  DrawCallback_SetSamplerFromTex;     // Request backend to use sampler associated to texture - only available in some backends: OpenGL2/3 and SDLRenderer3.
     //ImDrawCallback  DrawCallback_SetSamplerCustom;    // Request backend to set texture sampling using Backend Specific data.
 
     //------------------------------------------------------------------

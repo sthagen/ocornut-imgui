@@ -55,7 +55,8 @@
 #endif
 
 // SDL
-#include <SDL.h>
+#include <SDL_render.h>
+#include <SDL_version.h>
 #if !SDL_VERSION_ATLEAST(2,0,17)
 #error This backend requires SDL 2.0.17+ because of SDL_RenderGeometry() function
 #endif
@@ -73,6 +74,11 @@ struct ImGui_ImplSDLRenderer2_Data
 static ImGui_ImplSDLRenderer2_Data* ImGui_ImplSDLRenderer2_GetBackendData()
 {
     return ImGui::GetCurrentContext() ? (ImGui_ImplSDLRenderer2_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
+}
+
+ImGui_ImplSDLRenderer2_RenderState* ImGui_ImplSDLRenderer2_GetRenderState()
+{
+    return (ImGui_ImplSDLRenderer2_RenderState*)ImGui::GetPlatformIO().Renderer_RenderState;
 }
 
 // Functions

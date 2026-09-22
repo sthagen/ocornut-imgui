@@ -5,6 +5,7 @@
 //  [X] Renderer: User texture binding. Use 'SDL_GPUTexture*' as texture identifier. Read the FAQ about ImTextureID/ImTextureRef! **IMPORTANT** Before 2025/08/08, ImTextureID was a reference to a SDL_GPUTextureSamplerBinding struct.
 //  [X] Renderer: Large meshes support (64k+ vertices) even with 16-bit indices (ImGuiBackendFlags_RendererHasVtxOffset).
 //  [X] Renderer: Texture updates support for dynamic font atlas (ImGuiBackendFlags_RendererHasTextures).
+//  [X] Renderer: Expose selected render state for draw callbacks to use. Access with ImGui_ImplSDLGPU3_GetRenderState().
 
 // The aim of imgui_impl_sdlgpu3.h/.cpp is to be usable in your engine without any modification.
 // IF YOU FEEL YOU NEED TO MAKE ANY CHANGE TO THIS CODE, please share them and your feedback at https://github.com/ocornut/imgui/
@@ -91,6 +92,11 @@ static void ImGui_ImplSDLGPU3_DestroyFrameData();
 static ImGui_ImplSDLGPU3_Data* ImGui_ImplSDLGPU3_GetBackendData()
 {
     return ImGui::GetCurrentContext() ? (ImGui_ImplSDLGPU3_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
+}
+
+ImGui_ImplSDLGPU3_RenderState* ImGui_ImplSDLGPU3_GetRenderState()
+{
+    return (ImGui_ImplSDLGPU3_RenderState*)ImGui::GetPlatformIO().Renderer_RenderState;
 }
 
 static void ImGui_ImplSDLGPU3_SetupRenderState(ImDrawData* draw_data, SDL_GPUGraphicsPipeline* pipeline, SDL_GPUCommandBuffer* command_buffer, SDL_GPURenderPass* render_pass, ImGui_ImplSDLGPU3_FrameData* fd, uint32_t fb_width, uint32_t fb_height)

@@ -5,8 +5,8 @@
 // Implemented features:
 //  [X] Renderer: User texture binding. Use 'WGPUTextureView' as ImTextureID. Read the FAQ about ImTextureID/ImTextureRef!
 //  [X] Renderer: Large meshes support (64k+ vertices) even with 16-bit indices (ImGuiBackendFlags_RendererHasVtxOffset).
-//  [X] Renderer: Expose selected render state for draw callbacks to use. Access in '(ImGui_ImplXXXX_RenderState*)GetPlatformIO().Renderer_RenderState'.
 //  [X] Renderer: Texture updates support for dynamic font system (ImGuiBackendFlags_RendererHasTextures).
+//  [X] Renderer: Expose selected render state for draw callbacks to use. Access with ImGui_ImplWGPU_GetRenderState().
 
 // Read imgui_impl_wgpu.h about how to use the IMGUI_IMPL_WEBGPU_BACKEND_WGPU or IMGUI_IMPL_WEBGPU_BACKEND_DAWN flags.
 
@@ -127,6 +127,11 @@ struct ImGui_ImplWGPU_Data
 static ImGui_ImplWGPU_Data* ImGui_ImplWGPU_GetBackendData()
 {
     return ImGui::GetCurrentContext() ? (ImGui_ImplWGPU_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
+}
+
+ImGui_ImplWGPU_RenderState* ImGui_ImplWGPU_GetRenderState()
+{
+    return (ImGui_ImplWGPU_RenderState*)ImGui::GetPlatformIO().Renderer_RenderState;
 }
 
 //-----------------------------------------------------------------------------

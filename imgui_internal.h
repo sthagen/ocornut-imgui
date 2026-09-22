@@ -368,6 +368,7 @@ extern IMGUI_API ImGuiContext* GImGui;  // Current implicit context pointer
 // - Helper: ImPool<>
 // - Helper: ImChunkStream<>
 // - Helper: ImGuiTextIndex
+// - Helper: ImGuiTextFilterItem
 // - Helper: ImGuiStorage
 //-----------------------------------------------------------------------------
 
@@ -407,7 +408,7 @@ IMGUI_API const char*   ImStrSkipBlank(const char* str);                        
 IMGUI_API int           ImStrlenW(const ImWchar* str);                                      // Computer string length (ImWchar string)
 IMGUI_API const char*   ImStrbol(const char* buf_mid_line, const char* buf_begin);          // Find beginning-of-line
 IM_MSVC_RUNTIME_CHECKS_OFF
-inline char             ImToUpper(char c)               { return (c >= 'a' && c <= 'z') ? c &= ~32 : c; }
+inline char             ImToUpper(char c)               { return (c >= 'a' && c <= 'z') ? c & ~32 : c; }
 inline bool             ImCharIsBlankA(char c)          { return c == ' ' || c == '\t'; }
 inline bool             ImCharIsBlankW(unsigned int c)  { return c == ' ' || c == '\t' || c == 0x3000; }
 inline bool             ImCharIsXdigitA(char c)         { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'); }
@@ -834,6 +835,16 @@ struct ImGuiTextIndex
     const char*     get_line_begin(const char* base, int n) { return base + (Offsets.Size != 0 ? Offsets[n] : 0); }
     const char*     get_line_end(const char* base, int n)   { return base + (n + 1 < Offsets.Size ? (Offsets[n + 1] - 1) : EndOffset); }
     void            append(const char* base, int old_size, int new_size);
+};
+
+// [Internal] Types
+struct ImGuiTextFilterItem
+{
+    const char*     Begin;              // Pointer within parent's buffer
+    int             Len;                // Length of text (non-zero terminated)
+    short           CountInclude;       // Number of consecutive items forming an end chain. >0 when beginning of an AND chain, =0 otherwise.
+    unsigned short  MatchIncludesMask;  // Storage for multi-sources versions of PassFilter(). Unused by core library.
+    ImGuiTextFilterItem(const char* b, const char* e) { IM_ASSERT(e > b); Begin = b; Len = (int)(e - b); CountInclude = 0; MatchIncludesMask = 0; }
 };
 
 // Helper: ImGuiPackedDate (sizeof() == 2)
@@ -2445,6 +2456,7 @@ struct ImGuiContext
     ImGuiID                 NavJustMovedToFocusScopeId;         // Just navigated to this focus scope id (result of a successfully MoveRequest).
     ImGuiKeyChord           NavJustMovedToKeyMods;
     bool                    NavJustMovedToIsTabbing;            // Copy of ImGuiNavMoveFlags_IsTabbing. Maybe we should store whole flags.
+    bool                    NavJustMovedToIsInit;               // Copy of ImGuiNavMoveFlags_IsTabbing. Maybe we should store whole flags.
     bool                    NavJustMovedToHasSelectionData;     // Copy of move result's ItemFlags & ImGuiItemFlags_HasSelectionUserData). Maybe we should just store ImGuiNavItemData.
 
     // Navigation: extra config options (will be made public eventually)
@@ -3125,9 +3137,9 @@ struct IMGUI_API ImGuiTable
     ImDrawListSplitter*         DrawSplitter;               // Shortcut to TempData->DrawSplitter while in table. Isolate draw commands per columns to avoid switching clip rect constantly
     ImGuiTableInstanceData      InstanceDataFirst;
     ImVector<ImGuiTableInstanceData>    InstanceDataExtra;  // FIXME-OPT: Using a small-vector pattern would be good.
-    ImGuiTableColumnSortSpecs   SortSpecsSingle;
-    ImVector<ImGuiTableColumnSortSpecs> SortSpecsMulti;     // FIXME-OPT: Using a small-vector pattern would be good.
     ImGuiTableSortSpecs         SortSpecs;                  // Public facing sorts specs, this is what we return in TableGetSortSpecs()
+    ImVector<ImGuiTableColumnSortSpecs> SortSpecsMulti;     // FIXME-OPT: Using a small-vector pattern would be good.
+    ImGuiTableColumnSortSpecs   SortSpecsSingle;
     ImGuiTableColumnIdx         SortSpecsCount;
     ImGuiTableColumnIdx         ColumnsEnabledCount;        // Number of enabled columns (<= ColumnsCount)
     ImGuiTableColumnIdx         ColumnsEnabledFixedCount;   // Number of enabled columns using fixed width (<= ColumnsCount)
@@ -3159,6 +3171,7 @@ struct IMGUI_API ImGuiTable
     ImS8                        NavLayer;                   // ImGuiNavLayer at the time of BeginTable().
     bool                        IsLayoutLocked;             // Set by TableUpdateLayout() which is called when beginning the first row.
     bool                        IsInsideRow;                // Set when inside TableBeginRow()/TableEndRow().
+    bool                        IsNewTable;
     bool                        IsInitializing;
     bool                        IsReconcileMode;
     bool                        IsSortSpecsDirty;
@@ -3707,6 +3720,7 @@ namespace ImGui
     IMGUI_API ImGuiTabItem* TabBarGetCurrentTab(ImGuiTabBar* tab_bar);
     inline int              TabBarGetTabOrder(ImGuiTabBar* tab_bar, ImGuiTabItem* tab) { return tab_bar->Tabs.index_from_ptr(tab); }
     IMGUI_API const char*   TabBarGetTabName(ImGuiTabBar* tab_bar, ImGuiTabItem* tab);
+    IMGUI_API ImVec2        TabBarGetTabPos(ImGuiTabBar* tab_bar, ImGuiTabItem* tab);
     IMGUI_API void          TabBarRemoveTab(ImGuiTabBar* tab_bar, ImGuiID tab_id);
     IMGUI_API void          TabBarCloseTab(ImGuiTabBar* tab_bar, ImGuiTabItem* tab);
     IMGUI_API void          TabBarQueueFocus(ImGuiTabBar* tab_bar, ImGuiTabItem* tab);
